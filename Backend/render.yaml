@@ -1,0 +1,26 @@
+# Render deployment configuration for MyApi Backend
+# Build Command: dotnet publish -c Release -o out
+# Start Command: dotnet out/MyApi.dll
+
+# Environment Variables needed on Render:
+# DATABASE_URL=postgresql://username:password@host:port/database?sslmode=require
+# PORT=10000 (Render will set this automatically)
+# ASPNETCORE_ENVIRONMENT=Production
+# JWT_KEY=your-secret-jwt-key
+# JWT_ISSUER=MyApi
+# JWT_AUDIENCE=MyApiClients
+#
+# Per-tenant databases (Render Dashboard → Service → Environment → Add Environment Variable)
+# Add one env var per tenant slug using this exact pattern:
+# TENANT_<TENANT_SLUG_UPPERCASE>_DATABASE_URL=postgresql://username:password@host:port/database?sslmode=require
+#
+# Examples:
+# TENANT_DEMO_DATABASE_URL=postgresql://flowkyn:***@host:5432/DemoFlowentra?sslmode=require
+# TENANT_DEV_DATABASE_URL=postgresql://flowkyn:***@host:5432/DevFlowentra?sslmode=require
+# TENANT_KROSSIER_DATABASE_URL=postgresql://neondb_owner:***@host:5432/neondb?sslmode=require&channel_binding=require
+#
+# For krossier.demo.dev, the required env var name is exactly:
+# TENANT_KROSSIER_DATABASE_URL
+#
+# Health Check URL: /health
+# API Documentation: /api-docs

@@ -1,0 +1,7 @@
+{
+  "name": "oas-design-templates",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}

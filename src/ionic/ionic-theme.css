@@ -1,0 +1,118 @@
+/**
+ * Ionic ⇄ design-token bridge.
+ * Every Ionic CSS variable is mapped to the same HSL tokens Tailwind uses,
+ * so Ionic components inherit the app's colors, radius and typography in
+ * both light and dark themes.
+ */
+
+:root {
+  --ion-font-family: var(--font-body, Inter, system-ui, sans-serif);
+  --ion-default-font: var(--font-body, Inter, system-ui, sans-serif);
+
+  --ion-background-color: hsl(var(--background));
+  --ion-background-color-rgb: 255, 255, 255;
+  --ion-text-color: hsl(var(--foreground));
+  --ion-border-color: hsl(var(--border));
+
+  --ion-color-primary: hsl(var(--primary));
+  --ion-color-primary-contrast: hsl(var(--primary-foreground));
+  --ion-color-primary-shade: hsl(var(--primary-hover));
+  --ion-color-primary-tint: hsl(var(--primary-hover));
+
+
+  --ion-color-secondary: hsl(var(--secondary));
+  --ion-color-secondary-contrast: hsl(var(--secondary-foreground));
+
+  --ion-color-success: hsl(var(--success));
+  --ion-color-success-contrast: hsl(var(--success-foreground));
+
+  --ion-color-warning: hsl(var(--warning));
+  --ion-color-warning-contrast: hsl(var(--warning-foreground));
+
+  --ion-color-danger: hsl(var(--destructive));
+  --ion-color-danger-contrast: hsl(var(--destructive-foreground));
+
+  --ion-color-medium: hsl(var(--muted-foreground));
+  --ion-color-light: hsl(var(--muted));
+  --ion-color-light-contrast: hsl(var(--foreground));
+
+  --ion-item-background: hsl(var(--card));
+  --ion-toolbar-background: hsl(var(--background));
+  --ion-card-background: hsl(var(--card));
+
+  --ion-safe-area-top: env(safe-area-inset-top);
+  --ion-safe-area-bottom: env(safe-area-inset-bottom);
+}
+
+/* Ionic components must not fight the app's 13px root scale. */
+ion-app,
+ion-content,
+ion-button,
+ion-segment-button,
+ion-label,
+ion-item,
+ion-chip,
+ion-note {
+  font-size: inherit;
+  font-family: var(--ion-font-family);
+}
+
+ion-button {
+  --border-radius: var(--radius);
+  --box-shadow: none;
+  --padding-start: 0.875rem;
+  --padding-end: 0.875rem;
+  height: 2rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+ion-segment {
+  --background: hsl(var(--muted));
+  border-radius: var(--radius);
+}
+
+ion-segment-button {
+  --border-radius: calc(var(--radius) - 2px);
+  --indicator-color: hsl(var(--card));
+  --indicator-box-shadow: var(--shadow-card);
+  --color: hsl(var(--muted-foreground));
+  --color-checked: hsl(var(--foreground));
+  min-height: 1.75rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+ion-segment {
+  padding: 0.125rem;
+}
+
+
+
+ion-item {
+  --border-color: hsl(var(--border));
+  --padding-start: 0.75rem;
+  --inner-padding-end: 0.75rem;
+  --min-height: 2.5rem;
+}
+
+ion-chip {
+  height: 1.375rem;
+  font-size: var(--text-badge-size, 0.6875rem);
+}
+
+/* Ionic renders its own dark palette; ours is class-based. */
+.dark {
+  --ion-background-color-rgb: 17, 19, 24;
+}
+
+/* Let Ionic live inside a normal document flow instead of taking over the
+   viewport — this page is a scrolling showcase, not a native shell. */
+.oas-ionic-inline ion-app,
+.oas-ionic-inline ion-content {
+  position: relative;
+  contain: none;
+  --background: transparent;
+}

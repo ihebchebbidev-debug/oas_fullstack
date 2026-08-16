@@ -1,0 +1,23 @@
+[Unit]
+Description=FlowentraApp auto-deploy watcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Change "backend" to the OS user that owns the repo and publish directory
+User=backend
+Group=backend
+
+ExecStart=/home/backend/FlowentraApp_new/Backend/auto-deploy.sh
+
+# Restart the watcher automatically if it ever crashes
+Restart=always
+RestartSec=10
+
+# Write stdout/stderr to the systemd journal (journalctl -u auto-deploy -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

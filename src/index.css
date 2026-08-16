@@ -1,0 +1,704 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ================================================================== */
+/* Shared Typography System — base layer                              */
+/* Values are injected as CSS custom properties by                    */
+/* `src/config/typography.runtime.ts` (from typography.config.ts).    */
+/* ================================================================== */
+@layer base {
+  html {
+    font-family: var(--font-body, Inter, system-ui, sans-serif);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    font-family: var(--font-body, Inter, system-ui, sans-serif);
+    font-size: var(--text-body-size, 0.875rem);
+    line-height: var(--text-body-lh, 1.5);
+    font-weight: var(--text-body-weight, 400);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading, Inter, system-ui, sans-serif);
+  }
+  code, kbd, pre, samp {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: var(--text-code-size, 0.8125rem);
+  }
+  input, textarea, select {
+    font-family: var(--font-body, inherit);
+    font-size: var(--text-input-size, 0.875rem);
+  }
+  button {
+    font-family: var(--font-body, inherit);
+  }
+  th {
+    font-family: var(--font-body, inherit);
+  }
+  /* Print — smaller, tighter type based on typographyConfig.print */
+  @media print {
+    body { font-size: 10pt; line-height: 1.4; }
+    h1 { font-size: 18pt; }
+    h2 { font-size: 15pt; }
+    h3 { font-size: 13pt; }
+    h4, h5, h6 { font-size: 11pt; }
+  }
+}
+
+
+
+/* Compact table styles for import preview */
+.compact-table {
+  --row-height: 40px;
+  --header-height: 44px;
+}
+
+.compact-table .virtual-table-row {
+  min-height: var(--row-height);
+  border-bottom: 1px solid hsl(var(--border));
+  transition: background-color 0.15s ease;
+}
+
+.compact-table .virtual-table-row:hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
+.compact-table .virtual-table-header {
+  min-height: var(--header-height);
+  background-color: hsl(var(--muted) / 0.8);
+  border-bottom: 2px solid hsl(var(--border));
+  font-weight: 600;
+}
+
+/* Status indicators */
+.status-valid {
+  color: hsl(142 76% 36%);
+}
+
+.status-error {
+  color: hsl(0 84% 60%);
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) {
+  .compact-table {
+    --row-height: 48px;
+    --header-height: 48px;
+  }
+}
+
+/* Force list-only UI on tablets and phones (< 1280px):
+   any toggle button switching to a non-list view (table/kanban/grid/map)
+   is hidden so customers on tablets stay in the list view. */
+@media (max-width: 1279px) {
+  .non-list-view-toggle,
+  [data-non-list-view="true"] {
+    display: none !important;
+  }
+}
+
+/* List UX polish shared across every module list */
+.list-row {
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.list-row:hover {
+  background-color: hsl(var(--muted) / 0.4);
+}
+.list-row:active {
+  transform: scale(0.998);
+}
+
+
+
+/* FlowSolution Design System - Professional SaaS Theme */
+/* Import statement removed - fonts loaded via HTML link tags */
+
+@layer base {
+  :root {
+    /* Professional Brand Colors — refined, less aggressive */
+    --primary: 4 80% 56%;              /* Refined Red — slightly less saturated for elegance */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 4 80% 46%;
+    --primary-light: 4 60% 96%;
+    
+    --accent: 172 66% 34%;             /* Teal — slightly desaturated for sophistication */
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 172 66% 26%;
+    --accent-light: 172 50% 96%;
+    
+    --secondary: 220 14% 96%;          /* Neutral cool gray */
+    --secondary-foreground: 220 20% 20%;
+    --secondary-hover: 220 14% 93%;
+    --secondary-light: 220 14% 98%;
+
+    /* Status Colors — professional, muted tones */
+    --success: 142 64% 38%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 50% 96%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 80% 96%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 60% 96%;
+    --info: 220 70% 52%;               /* Info now blue — distinct from primary */
+    --info-foreground: 0 0% 100%;
+    --info-light: 220 60% 96%;
+
+    /* Chart Colors — harmonised palette */
+    --chart-1: 4 80% 56%;
+    --chart-2: 172 66% 34%;
+    --chart-3: 142 64% 38%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 220 70% 52%;
+    --chart-6: 262 60% 52%;
+    --chart-orange: 24 90% 50%;
+
+    /* RAG (Red / Amber / Green) — reporting flags */
+    --rag-green: 142 64% 38%;
+    --rag-yellow: 38 92% 50%;
+    --rag-red: 0 72% 56%;
+    --rag-orange: 24 90% 50%;
+    --rag-neutral: 220 10% 60%;
+
+    /* Machine-state colors — the ONLY chromatic system in the product.
+       Values mirror the maquette v1.3 (#16A34A / #E5A400 / #EA6A1E /
+       #DC2F2F / #2563EB / #9AA7B6). Anything decorative must stay
+       neutral so these six states remain instantly recognizable. */
+    --state-production: 142 76% 36%;
+    --state-material:   43 100% 45%;
+    --state-changeover: 21 84% 51%;
+    --state-technical:  0 72% 52%;
+    --state-quality:    221 83% 53%;
+    --state-idle:       213 14% 66%;
+
+
+
+
+
+    /* Clean Interface — Twenty-inspired neutral tones */
+    --background: 0 0% 98%;            /* Near-white, clean #FAFAFA */
+    --foreground: 220 20% 14%;         /* Rich dark text */
+    --overlay: 220 25% 10%;            /* Scrim behind modals / tour spotlight */
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
+    
+    --muted: 220 14% 95%;
+    --muted-foreground: 220 10% 46%;
+    --border: 220 13% 90%;             /* Subtle, clean borders */
+    --input: 0 0% 100%;
+    --ring: 4 80% 56%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 14%;
+
+    /* Refined Shadows & Effects */
+    --radius: 0.5rem;                  /* Tighter radius — more professional */
+    --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-medium: 0 2px 8px -2px rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+    --shadow-strong: 0 8px 24px -4px rgb(0 0 0 / 0.1), 0 2px 6px -2px rgb(0 0 0 / 0.05);
+    --shadow-glow: 0 0 24px rgb(0 0 0 / 0.06);
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.03);
+    
+    /* Subtle Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-hover)) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--accent-hover)) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)) 0%, hsl(142 64% 46%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(220 14% 99%) 100%);
+    
+    /* Transitions */
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --transition-fast: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Sidebar — clean, minimal */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 20% 14%;
+    --sidebar-primary: 4 80% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 220 20% 14%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 4 80% 56%;
+  }
+
+  .dark {
+    /* Dark Mode — refined, easy on eyes */
+    --primary: 4 78% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 4 78% 68%;
+    --primary-light: 4 60% 14%;
+    
+    --accent: 172 60% 42%;
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 172 60% 48%;
+    --accent-light: 172 50% 12%;
+
+    /* Dark Backgrounds — Twenty-inspired depth */
+    --background: 220 16% 8%;
+    --foreground: 220 14% 92%;
+    --overlay: 220 30% 3%;
+    --card: 220 16% 10%;
+    --card-foreground: 220 14% 92%;
+    
+    --muted: 220 16% 13%;
+    --muted-foreground: 220 10% 58%;
+    --border: 220 14% 18%;
+    --input: 220 16% 12%;
+    --ring: 4 78% 62%;
+    
+    /* Dark Status */
+    --success: 142 64% 48%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 58%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 72% 62%;
+    --destructive-foreground: 0 0% 100%;
+    --info: 220 70% 62%;
+    --info-foreground: 0 0% 100%;
+
+    --secondary: 220 16% 12%;
+    --secondary-foreground: 220 14% 92%;
+    --popover: 220 16% 10%;
+    --popover-foreground: 220 14% 92%;
+
+    /* Dark Shadows */
+    --shadow-soft: 0 1px 4px -1px hsl(0 0% 0% / 0.3);
+    --shadow-medium: 0 4px 12px -3px hsl(0 0% 0% / 0.4);
+    --shadow-strong: 0 8px 24px -6px hsl(0 0% 0% / 0.5);
+    --shadow-card: 0 1px 4px -1px hsl(0 0% 0% / 0.25);
+    
+    /* Dark Sidebar */
+    --sidebar-background: 220 16% 9%;
+    --sidebar-foreground: 220 14% 92%;
+    --sidebar-primary: 4 78% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 16% 13%;
+    --sidebar-accent-foreground: 220 14% 92%;
+    --sidebar-border: 220 14% 18%;
+    --sidebar-ring: 4 78% 62%;
+
+    /* Machine-state colors — brightened slightly for dark surfaces
+       while preserving the maquette hue identity. */
+    --state-production: 142 70% 45%;
+    --state-material:   43 95% 55%;
+    --state-changeover: 21 88% 58%;
+    --state-technical:  0 78% 62%;
+    --state-quality:    221 85% 62%;
+    --state-idle:       213 14% 60%;
+
+    --gradient-card: linear-gradient(145deg, hsl(220 16% 10%) 0%, hsl(220 16% 12%) 100%);
+  }
+
+}
+
+/* Remove list bullets from sidebar */
+[data-sidebar] ul,
+[data-sidebar] li {
+  list-style: none !important;
+  list-style-type: none !important;
+}
+
+/* Twenty-style tree connector: hide the vertical line after the last sub-item */
+.sidebar-tree-sub .sidebar-tree-last::after {
+  content: '';
+  position: absolute;
+  left: -15.5px;
+  top: 50%;
+  bottom: -4px;
+  width: 1px;
+  background: hsl(var(--sidebar-background));
+  z-index: 1;
+}
+
+/* Refined global font sizing — Inter-based like Twenty */
+html {
+  font-size: var(--typo-root-size, 13px);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'rlig' 1, 'calt' 1, 'cv01' 1, 'cv02' 1;
+  letter-spacing: -0.011em;
+  font-optical-sizing: auto;
+}
+
+/* Global icon defaults — consistent stroke and sizing like Twenty */
+svg.lucide {
+  stroke-width: 1.75;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  /* Professional Utility Classes */
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .shadow-medium {
+    box-shadow: var(--shadow-medium);
+  }
+  
+  .shadow-strong {
+    box-shadow: var(--shadow-strong);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  /* Modern Gradients */
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .gradient-success {
+    background: var(--gradient-success);
+  }
+  
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  
+  /* Smooth Transitions */
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+  
+  .transition-fast {
+    transition: var(--transition-fast);
+  }
+  
+  /* Interactive Elements */
+  .hover-lift {
+    @apply transition-smooth;
+  }
+  
+  .hover-lift:hover {
+    @apply -translate-y-1 shadow-medium;
+  }
+  
+  .card-interactive {
+    @apply shadow-card hover-lift cursor-pointer;
+  }
+  
+  /* Chart Color Classes */
+  .chart-1 { color: hsl(var(--chart-1)); }
+  .chart-2 { color: hsl(var(--chart-2)); }
+  .chart-3 { color: hsl(var(--chart-3)); }
+  .chart-4 { color: hsl(var(--chart-4)); }
+  .chart-5 { color: hsl(var(--chart-5)); }
+  .chart-6 { color: hsl(var(--chart-6)); }
+  
+  .bg-chart-1 { background-color: hsl(var(--chart-1)); }
+  .bg-chart-2 { background-color: hsl(var(--chart-2)); }
+  .bg-chart-3 { background-color: hsl(var(--chart-3)); }
+  .bg-chart-4 { background-color: hsl(var(--chart-4)); }
+  .bg-chart-5 { background-color: hsl(var(--chart-5)); }
+  .bg-chart-6 { background-color: hsl(var(--chart-6)); }
+  
+  /* Status Indicators */
+  .status-success { 
+    @apply bg-success/10 text-success border border-success/20 rounded-md px-2.5 py-0.5 text-px-11 font-medium;
+  }
+  
+  .status-warning { 
+    @apply bg-warning/10 text-warning border border-warning/20 rounded-md px-2.5 py-0.5 text-px-11 font-medium;
+  }
+  
+  .status-error { 
+    @apply bg-destructive/10 text-destructive border border-destructive/20 rounded-md px-2.5 py-0.5 text-px-11 font-medium;
+  }
+  
+  .status-info { 
+    @apply bg-info/10 text-info border border-info/20 rounded-md px-2.5 py-0.5 text-px-11 font-medium;
+  }
+
+  /* Native filter selects — consistent with shadcn inputs */
+  select.border {
+    height: 2rem;
+    font-size: var(--text-input-size, 0.875rem);
+    border-radius: 0.375rem;
+    border-color: hsl(var(--border) / 0.6);
+    padding: 0 2rem 0 0.625rem;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  select.border:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 1px hsl(var(--ring));
+  }
+}
+
+/* Custom global scrollbars — subtle, professional */
+:root {
+  --scrollbar-size: 8px;
+}
+
+/* WebKit browsers (Chrome, Edge, Safari) */
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* Hide module header subtitles globally
+   Many module headers render a small subtitle using the classes
+   "text-px-11 text-muted-foreground" (or the same order reversed).
+   The product request is to remove those descriptions site-wide. This
+   CSS rule hides those subtitle <p> elements without changing markup
+   or translations. If you prefer explicit edits, we can remove the
+   <p> tags from each header component instead.
+*/
+p.text-\[11px\].text-muted-foreground,
+p.text-muted-foreground.text-\[11px\] {
+  display: none !important;
+}
+
+/* Horizontal mask for scrollable tab lists: soft fade on the right edge */
+.mask-fade-right {
+  /* hide native scrollbar visuals on supporting browsers */
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none; /* Firefox */
+  overflow: auto;
+  -webkit-mask-image: linear-gradient(to right, black 0%, black calc(100% - 2.5rem), transparent 100%);
+  mask-image: linear-gradient(to right, black 0%, black calc(100% - 2.5rem), transparent 100%);
+}
+.mask-fade-right::-webkit-scrollbar {
+  display: none;
+}
+
+/* Shimmer animation for loading indicators */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+/* Mobile sidebar smooth animations with configurable durations */
+[data-state="open"][style*="--sheet-open-duration"] {
+  animation-duration: var(--sheet-open-duration) !important;
+}
+[data-state="closed"][style*="--sheet-close-duration"] {
+  animation-duration: var(--sheet-close-duration) !important;
+}
+[style*="--sheet-easing"] {
+  animation-timing-function: var(--sheet-easing) !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Responsive tables — on small screens, tables marked `.table-stack` collapse
+ * into stacked "cards" (one block per row) instead of scrolling sideways.
+ * Each cell shows its column label via `data-label` when provided.
+ * Applied by default by the shared <Table> component (opt out: stackOnMobile={false}).
+ * ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .table-stack > table,
+  .table-stack > table > tbody {
+    display: block;
+    width: 100%;
+  }
+  .table-stack > table > thead {
+    display: none;
+  }
+  .table-stack > table > tbody > tr {
+    display: block;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    margin: 0 0 0.5rem;
+    padding: 0.25rem 0;
+    background: hsl(var(--card));
+  }
+  .table-stack > table > tbody > tr:last-child {
+    margin-bottom: 0;
+  }
+  .table-stack > table > tbody > tr > td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    border: none !important;
+    padding: 0.4rem 0.75rem;
+    text-align: right;
+    min-height: 0;
+  }
+  /* Column label (set `data-label` on the <td>) shown on the left of each cell. */
+  .table-stack > table > tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    text-align: left;
+    margin-right: auto;
+    white-space: nowrap;
+  }
+  /* Hide truly empty cells (e.g. spacer/checkbox columns) so they don't add rows. */
+  .table-stack > table > tbody > tr > td:empty {
+    display: none;
+  }
+  /* The wrapper's own border/scroll is redundant once rows are cards. */
+  .table-stack {
+    border: none !important;
+    overflow: visible !important;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Editorial mobile list rows — shared premium list styling for all    */
+/* modules (contacts, sales, offers, service orders, dispatches, etc.) */
+/* ------------------------------------------------------------------ */
+@layer components {
+  .list-editorial {
+    @apply divide-y divide-border/50;
+  }
+  .list-row-editorial {
+    @apply relative py-4 pl-5 pr-3 sm:pl-6 sm:pr-4 cursor-pointer transition-colors;
+    @apply hover:bg-muted/40 active:bg-muted/60;
+  }
+  .list-row-editorial::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.75rem;
+    bottom: 0.75rem;
+    width: 3px;
+    border-top-right-radius: 9999px;
+    border-bottom-right-radius: 9999px;
+    background: hsl(var(--primary));
+    opacity: 0;
+    transition: opacity 150ms ease-out;
+  }
+  .list-row-editorial:hover::before { opacity: 1; }
+  .list-row-editorial[data-selected="true"] {
+    background: hsl(var(--primary) / 0.04);
+  }
+  .list-row-editorial[data-selected="true"]::before { opacity: 1; }
+
+  .list-row-avatar {
+    @apply w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0;
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.12);
+  }
+  .list-row-avatar-selected {
+    @apply bg-primary text-primary-foreground;
+    box-shadow: inset 0 0 0 1px hsl(var(--primary));
+  }
+  .list-row-title {
+    @apply font-semibold text-foreground text-base leading-tight tracking-tight line-clamp-1;
+  }
+  .list-row-subtitle {
+    @apply text-px-10 text-muted-foreground mt-1 line-clamp-1;
+  }
+  .list-row-meta {
+    @apply flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5;
+  }
+  .list-row-meta-item {
+    @apply inline-flex items-center gap-1.5 text-px-12 text-muted-foreground/90;
+  }
+  .list-row-amount {
+    @apply text-base font-semibold text-foreground tabular-nums;
+  }
+  .list-row-status {
+    @apply text-[10.5px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-md;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Global rule: any element painted with the primary brand color as   */
+/* its background renders its text (and inline SVG icons) in white    */
+/* for maximum contrast, regardless of variant / className overrides. */
+/* This complements the --primary-foreground token (already white)    */
+/* and enforces it across every button call-site that uses            */
+/* `bg-primary`, the default shadcn Button variant, gradient-primary  */
+/* surfaces, and `hover:bg-primary` utilities.                        */
+/* ------------------------------------------------------------------ */
+.bg-primary,
+.bg-primary *,
+[class*="bg-gradient-primary"],
+[class*="bg-gradient-primary"] *,
+.hover\:bg-primary:hover,
+.hover\:bg-primary:hover * {
+  color: hsl(0 0% 100%) !important;
+}
+
+

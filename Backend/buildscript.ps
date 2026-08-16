@@ -1,0 +1,66 @@
+#!/bin/bash
+# deploy.sh - Auto deploy FlowServiceBackend
+
+# ------------------------
+# Configuration
+# ------------------------
+REPO_DIR="/home/backend/FlowServiceBackend"   # Git repo folder
+PUBLISH_DIR="/home/backend/publish"          # Dotnet publish output
+SERVICE_NAME="backend"                        # systemd service name
+BRANCH="main"                                 # Git branch to track
+ENV_FILE="/home/backend/.env"                 # Optional environment file
+
+# ------------------------
+# Load environment variables
+# ------------------------
+if [ -f "$ENV_FILE" ]; then
+    export $(grep -v '^#' $ENV_FILE | xargs)
+fi
+
+# ------------------------
+# Go to repo folder
+# ------------------------
+cd $REPO_DIR || { echo "❌ Cannot enter $REPO_DIR"; exit 1; }
+
+# ------------------------
+# Ensure correct branch
+# ------------------------
+git checkout $BRANCH
+
+# ------------------------
+# Fetch latest commits
+# ------------------------
+git fetch origin $BRANCH
+
+# ------------------------
+# Compare local HEAD with remote
+# ------------------------
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/$BRANCH)
+
+if [ "$LOCAL" != "$REMOTE" ]; then
+    echo "🚀 New changes detected. Deploying..."
+
+    # Pull latest code and reset
+    git reset --hard origin/$BRANCH
+
+    # Fix permissions on obj/bin directories (may be owned by root from previous builds)
+    sudo chown -R $(whoami):$(whoami) $REPO_DIR/obj $REPO_DIR/bin 2>/dev/null || true
+    
+    # Clean previous build artifacts to avoid stale cache issues
+    dotnet clean -c Release 2>/dev/null || true
+    rm -rf $REPO_DIR/obj $REPO_DIR/bin 2>/dev/null || true
+
+    # Restore dependencies
+    dotnet restore
+
+    # Publish production build
+    dotnet publish -c Release -o $PUBLISH_DIR
+
+    # Restart the backend service
+    sudo systemctl restart $SERVICE_NAME
+
+    echo "✅ Deployment finished successfully."
+else
+    echo "ℹ️ No changes detected."
+fi

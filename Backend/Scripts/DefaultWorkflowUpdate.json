@@ -1,0 +1,388 @@
+{
+  "_info": {
+    "description": "Updated Default Business Workflow with new dispatch statuses",
+    "dispatchFlow": "pending → planned → confirmed/rejected → in_progress → completed",
+    "serviceOrderCascadeRules": [
+      "1. If at least one dispatch is in_progress → Service Order = in_progress",
+      "2. If at least one dispatch is completed AND there are more than one dispatch → Service Order = partially_completed",
+      "3. If service order has ONE dispatch that is completed → Service Order = technically_completed",
+      "4. If dispatch is rejected → Service Order = ready_for_planning"
+    ],
+    "version": 2
+  },
+  "nodes": [
+    {
+      "id": "trigger-offer-accepted",
+      "type": "offer-status-trigger",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "Offer Accepted",
+        "type": "offer-status-trigger",
+        "fromStatus": null,
+        "toStatus": "accepted",
+        "description": "Triggers when an offer is accepted"
+      }
+    },
+    {
+      "id": "action-create-sale",
+      "type": "sale",
+      "position": { "x": 400, "y": 100 },
+      "data": {
+        "label": "Create Sale",
+        "type": "sale",
+        "description": "Automatically create a sale from the accepted offer",
+        "config": { "autoCreate": true, "copyFromOffer": true }
+      }
+    },
+    {
+      "id": "trigger-sale-in-progress",
+      "type": "sale-status-trigger",
+      "position": { "x": 100, "y": 250 },
+      "data": {
+        "label": "Sale In Progress",
+        "type": "sale-status-trigger",
+        "fromStatus": "created",
+        "toStatus": "in_progress",
+        "description": "Triggers when a sale starts processing"
+      }
+    },
+    {
+      "id": "condition-has-services",
+      "type": "if-else",
+      "position": { "x": 400, "y": 250 },
+      "data": {
+        "label": "Has Service Items?",
+        "type": "if-else",
+        "description": "Check if the sale contains at least one service item",
+        "config": {
+          "conditionData": {
+            "field": "sale.items",
+            "value": "service",
+            "operator": "contains",
+            "checkField": "type"
+          }
+        }
+      }
+    },
+    {
+      "id": "action-create-service-order",
+      "type": "service-order",
+      "position": { "x": 700, "y": 200 },
+      "data": {
+        "label": "Create Service Order",
+        "type": "service-order",
+        "description": "Create a service order for the service items",
+        "config": {
+          "autoCreate": true,
+          "initialStatus": "pending",
+          "copyServicesFromSale": true
+        }
+      }
+    },
+    {
+      "id": "trigger-service-order-scheduled",
+      "type": "service-order-status-trigger",
+      "position": { "x": 100, "y": 400 },
+      "data": {
+        "label": "Service Order Planned",
+        "type": "service-order-status-trigger",
+        "fromStatus": "ready_for_planning",
+        "toStatus": "planned",
+        "description": "Triggers when a service order is planned"
+      }
+    },
+    {
+      "id": "action-create-dispatches",
+      "type": "dispatch",
+      "position": { "x": 400, "y": 400 },
+      "data": {
+        "label": "Create Dispatches",
+        "type": "dispatch",
+        "description": "Create dispatch entries for each service (status: pending)",
+        "config": {
+          "autoCreate": true,
+          "initialStatus": "pending",
+          "createPerService": true
+        }
+      }
+    },
+    {
+      "id": "trigger-dispatch-confirmed",
+      "type": "dispatch-status-trigger",
+      "position": { "x": 100, "y": 550 },
+      "data": {
+        "label": "Dispatch Confirmed",
+        "type": "dispatch-status-trigger",
+        "fromStatus": "planned",
+        "toStatus": "confirmed",
+        "description": "Triggers when a dispatch is confirmed by technician"
+      }
+    },
+    {
+      "id": "trigger-dispatch-in-progress",
+      "type": "dispatch-status-trigger",
+      "position": { "x": 100, "y": 650 },
+      "data": {
+        "label": "Dispatch In Progress",
+        "type": "dispatch-status-trigger",
+        "fromStatus": "confirmed",
+        "toStatus": "in_progress",
+        "description": "Triggers when a dispatch starts"
+      }
+    },
+    {
+      "id": "action-service-order-in-progress",
+      "type": "update-service-order-status",
+      "position": { "x": 400, "y": 650 },
+      "data": {
+        "label": "Service Order → In Progress",
+        "type": "update-service-order-status",
+        "description": "Rule 1: At least one dispatch in_progress → SO in_progress",
+        "config": {
+          "condition": "ifNotAlreadyInProgress",
+          "newStatus": "in_progress"
+        }
+      }
+    },
+    {
+      "id": "trigger-dispatch-rejected",
+      "type": "dispatch-status-trigger",
+      "position": { "x": 100, "y": 750 },
+      "data": {
+        "label": "Dispatch Rejected",
+        "type": "dispatch-status-trigger",
+        "fromStatus": "planned",
+        "toStatus": "rejected",
+        "description": "Triggers when a dispatch is rejected"
+      }
+    },
+    {
+      "id": "action-so-back-to-planning",
+      "type": "update-service-order-status",
+      "position": { "x": 400, "y": 750 },
+      "data": {
+        "label": "Service Order → Ready for Planning",
+        "type": "update-service-order-status",
+        "description": "Rule 4: Dispatch rejected → SO back to ready_for_planning",
+        "config": {
+          "newStatus": "ready_for_planning"
+        }
+      }
+    },
+    {
+      "id": "trigger-dispatch-completed",
+      "type": "dispatch-status-trigger",
+      "position": { "x": 100, "y": 900 },
+      "data": {
+        "label": "Dispatch Completed",
+        "type": "dispatch-status-trigger",
+        "fromStatus": "in_progress",
+        "toStatus": "completed",
+        "description": "Triggers when a dispatch is completed"
+      }
+    },
+    {
+      "id": "condition-dispatch-count",
+      "type": "if-else",
+      "position": { "x": 400, "y": 900 },
+      "data": {
+        "label": "Multiple Dispatches?",
+        "type": "if-else",
+        "description": "Check if service order has more than one dispatch",
+        "config": {
+          "conditionData": {
+            "field": "serviceOrder.dispatches.length",
+            "operator": "greater_than",
+            "value": "1"
+          }
+        }
+      }
+    },
+    {
+      "id": "condition-all-done",
+      "type": "if-else",
+      "position": { "x": 700, "y": 850 },
+      "data": {
+        "label": "All Dispatches Completed?",
+        "type": "if-else",
+        "description": "Check if all dispatches for the service order are completed",
+        "config": {
+          "conditionData": {
+            "field": "serviceOrder.dispatches",
+            "value": "completed",
+            "operator": "all_match",
+            "checkField": "status"
+          }
+        }
+      }
+    },
+    {
+      "id": "action-so-tech-complete",
+      "type": "update-service-order-status",
+      "position": { "x": 1000, "y": 800 },
+      "data": {
+        "label": "Service Order → Technically Completed",
+        "type": "update-service-order-status",
+        "description": "Rule 3: All dispatches completed OR single dispatch completed",
+        "config": {
+          "newStatus": "technically_completed"
+        }
+      }
+    },
+    {
+      "id": "action-so-partial",
+      "type": "update-service-order-status",
+      "position": { "x": 1000, "y": 950 },
+      "data": {
+        "label": "Service Order → Partially Completed",
+        "type": "update-service-order-status",
+        "description": "Rule 2: Some dispatches completed, some pending",
+        "config": {
+          "newStatus": "partially_completed"
+        }
+      }
+    },
+    {
+      "id": "action-so-single-complete",
+      "type": "update-service-order-status",
+      "position": { "x": 700, "y": 1000 },
+      "data": {
+        "label": "Service Order → Technically Completed (Single)",
+        "type": "update-service-order-status",
+        "description": "Rule 3: Single dispatch completed → technically_completed",
+        "config": {
+          "newStatus": "technically_completed"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "trigger-offer-accepted",
+      "target": "action-create-sale",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-2",
+      "source": "trigger-sale-in-progress",
+      "target": "condition-has-services",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-3",
+      "source": "condition-has-services",
+      "target": "action-create-service-order",
+      "sourceHandle": "yes",
+      "type": "smoothstep",
+      "label": "YES"
+    },
+    {
+      "id": "edge-4",
+      "source": "trigger-service-order-scheduled",
+      "target": "action-create-dispatches",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-5",
+      "source": "trigger-dispatch-in-progress",
+      "target": "action-service-order-in-progress",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-6",
+      "source": "trigger-dispatch-rejected",
+      "target": "action-so-back-to-planning",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-7",
+      "source": "trigger-dispatch-completed",
+      "target": "condition-dispatch-count",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-8",
+      "source": "condition-dispatch-count",
+      "target": "condition-all-done",
+      "sourceHandle": "yes",
+      "type": "smoothstep",
+      "label": "YES (>1)"
+    },
+    {
+      "id": "edge-9",
+      "source": "condition-dispatch-count",
+      "target": "action-so-single-complete",
+      "sourceHandle": "no",
+      "type": "smoothstep",
+      "label": "NO (=1)"
+    },
+    {
+      "id": "edge-10",
+      "source": "condition-all-done",
+      "target": "action-so-tech-complete",
+      "sourceHandle": "yes",
+      "type": "smoothstep",
+      "label": "YES"
+    },
+    {
+      "id": "edge-11",
+      "source": "condition-all-done",
+      "target": "action-so-partial",
+      "sourceHandle": "no",
+      "type": "smoothstep",
+      "label": "NO"
+    }
+  ],
+  "triggers": [
+    {
+      "nodeId": "trigger-offer-accepted",
+      "entityType": "offer",
+      "fromStatus": null,
+      "toStatus": "accepted",
+      "isActive": true
+    },
+    {
+      "nodeId": "trigger-sale-in-progress",
+      "entityType": "sale",
+      "fromStatus": "created",
+      "toStatus": "in_progress",
+      "isActive": true
+    },
+    {
+      "nodeId": "trigger-service-order-scheduled",
+      "entityType": "service_order",
+      "fromStatus": "ready_for_planning",
+      "toStatus": "planned",
+      "isActive": true
+    },
+    {
+      "nodeId": "trigger-dispatch-confirmed",
+      "entityType": "dispatch",
+      "fromStatus": "planned",
+      "toStatus": "confirmed",
+      "isActive": true
+    },
+    {
+      "nodeId": "trigger-dispatch-in-progress",
+      "entityType": "dispatch",
+      "fromStatus": "confirmed",
+      "toStatus": "in_progress",
+      "isActive": true
+    },
+    {
+      "nodeId": "trigger-dispatch-rejected",
+      "entityType": "dispatch",
+      "fromStatus": "planned",
+      "toStatus": "rejected",
+      "isActive": true
+    },
+    {
+      "nodeId": "trigger-dispatch-completed",
+      "entityType": "dispatch",
+      "fromStatus": "in_progress",
+      "toStatus": "completed",
+      "isActive": true
+    }
+  ]
+}

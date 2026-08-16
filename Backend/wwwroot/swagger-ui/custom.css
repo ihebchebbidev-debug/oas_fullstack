@@ -1,0 +1,194 @@
+/* Enhanced Swagger UI Styling */
+.swagger-ui .topbar {
+    background-color: #1f2937;
+    border-bottom: 3px solid #3b82f6;
+}
+
+.swagger-ui .topbar .download-url-wrapper {
+    display: none;
+}
+
+.swagger-ui .info .title {
+    color: #1f2937;
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+.swagger-ui .info .description {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #4b5563;
+}
+
+.swagger-ui .scheme-container {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.swagger-ui .opblock.opblock-post {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.swagger-ui .opblock.opblock-get {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.swagger-ui .opblock.opblock-put {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.swagger-ui .opblock.opblock-delete {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.swagger-ui .opblock-summary-method {
+    font-weight: bold;
+    text-transform: uppercase;
+    min-width: 80px;
+    text-align: center;
+    border-radius: 6px;
+}
+
+.swagger-ui .opblock-summary-path {
+    font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+    font-weight: 600;
+}
+
+.swagger-ui .opblock-description-wrapper,
+.swagger-ui .opblock-external-docs-wrapper,
+.swagger-ui .opblock-title_normal {
+    color: #374151;
+}
+
+.swagger-ui .parameters-col_description {
+    color: #6b7280;
+}
+
+.swagger-ui .parameter__name {
+    font-weight: bold;
+    color: #1f2937;
+}
+
+.swagger-ui .parameter__type {
+    color: #7c3aed;
+    font-weight: 500;
+}
+
+.swagger-ui .response-col_status {
+    font-weight: bold;
+}
+
+.swagger-ui .response-col_links {
+    max-width: 200px;
+}
+
+/* Authorization section styling */
+.swagger-ui .auth-wrapper {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.swagger-ui .auth-container .errors {
+    background: #fef2f2;
+    border: 1px solid #ef4444;
+    color: #dc2626;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+/* Development token helper */
+.dev-token-helper {
+    background: #dbeafe;
+    border: 1px solid #3b82f6;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+}
+
+.dev-token-helper .token-label {
+    font-weight: bold;
+    color: #1e40af;
+    margin-bottom: 8px;
+}
+
+.dev-token-helper .token-value {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 8px;
+    word-break: break-all;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+.dev-token-helper .token-actions {
+    margin-top: 10px;
+}
+
+.dev-token-helper button {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 8px;
+    font-size: 0.875rem;
+}
+
+.dev-token-helper button:hover {
+    background: #2563eb;
+}
+
+/* Improved code styling */
+.swagger-ui .highlight-code {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+.swagger-ui .model-box {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+/* Response examples */
+.swagger-ui .responses-inner h4,
+.swagger-ui .responses-inner h5 {
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.swagger-ui .response-content-type {
+    font-weight: 500;
+    color: #7c3aed;
+}
+
+/* Loading states */
+.swagger-ui .loading {
+    color: #3b82f6;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .swagger-ui .info .title {
+        font-size: 2rem;
+    }
+    
+    .swagger-ui .opblock-summary-method {
+        min-width: 60px;
+        font-size: 0.75rem;
+    }
+}
