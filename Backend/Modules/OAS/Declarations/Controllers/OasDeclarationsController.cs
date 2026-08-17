@@ -65,8 +65,12 @@ public class OasDeclarationsController : OasControllerBase
     /// state machine.
     /// </summary>
     [HttpPost("stop")]
-    public async Task<ActionResult<OasEventDto>> DeclareStop([FromBody] OasCreateEventRequestDto request)
-        => Ok(await _events.CreateAsync(CurrentTenantId, CurrentOasUserId, request));
+    public async Task<IActionResult> DeclareStop([FromBody] OasCreateEventRequestDto request)
+    {
+        var (success, error, dto) = await _events.CreateAsync(CurrentTenantId, CurrentOasUserId, request);
+        if (!success) return Problem(statusCode: 409, title: error ?? "conflict");
+        return Ok(dto);
+    }
 
     [HttpPost("stop/{clientEventId}/close")]
     public async Task<IActionResult> CloseStop(Guid clientEventId, [FromBody] OasCloseEventRequestDto request)

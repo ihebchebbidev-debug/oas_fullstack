@@ -8,6 +8,7 @@ import { CauseReviewQueue } from '../components/CauseReviewQueue';
 import { CauseTreeEditor } from '../components/CauseTreeEditor';
 import { ReferencesPanel } from '../components/ReferencesPanel';
 import { completeness, useRefState } from '@/oas/refStore';
+import { useHierarchyState } from '@/oas/hierarchyStore';
 import { HierarchyManager } from '../components/HierarchyManager';
 import { ShiftCalendars } from '../components/ShiftCalendars';
 import { useT } from '@/i18n/I18nProvider';
@@ -19,6 +20,10 @@ export default function Referentials() {
   useRefState();
   /** BL-011 — completeness computed server-side, per family. */
   const rows = completeness();
+  // Real counts — was a hardcoded "Site Sousse · 1 zone · 3 lignes · 15 postes"
+  // regardless of the tenant's actual hierarchy.
+  const { sites, zones, lines, posts } = useHierarchyState();
+  const activePosts = posts.filter((p) => !p.archived).length;
   return (
     <>
       <PageHeader
@@ -58,7 +63,9 @@ export default function Referentials() {
         <Card className="min-w-0">
           <CardHeader>
             <CardTitle>{t('web.ref.hierarchy')}</CardTitle>
-            <CardDescription>{t('web.ref.hierarchyDesc')} · {t('web.ref.criticalHint')}</CardDescription>
+            <CardDescription>
+              {t('web.ref.hierarchyDesc', { sites: sites.length, zones: zones.length, lines: lines.length, posts: activePosts })} · {t('web.ref.criticalHint')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {/* BL-001 — Site → Zone → Line → Post CRUD (create / rename / archive),

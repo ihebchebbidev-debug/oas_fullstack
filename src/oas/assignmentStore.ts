@@ -81,8 +81,20 @@ export function currentShiftId(): string | null {
   return (shifts.find(inWindow) ?? shifts[0]).id;
 }
 
+/**
+ * `toISOString().slice(0,10)` reads the UTC calendar date, not the local
+ * one — `currentShiftId()` right above already correctly uses local
+ * `getHours()`, so the two "current shift"/"current work date" notions
+ * would silently diverge for any tenant not at UTC+0 (a night shift local
+ * time can already be "tomorrow" in UTC), filing assignment/presence rows
+ * under the wrong date.
+ */
 export function currentWorkDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 let loaded = false;

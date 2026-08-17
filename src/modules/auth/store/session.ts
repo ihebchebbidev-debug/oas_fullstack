@@ -141,12 +141,18 @@ export function getSessionState(): SessionState {
  * than trusting the local cache blindly forever.
  */
 let sessionChecked = false;
-function ensureSessionValid() {
-  if (sessionChecked || !state.session) return;
-  sessionChecked = true;
+
+/** The actual server round-trip, callable both from the once-per-load guard below and reactively from `session.reminder` (SSE) when the watchdog closes a session mid-shift. */
+function revalidateSession() {
+  if (!state.session) return;
   const localId = state.session.id;
   void postSessionsApi.active()
     .then((dto) => {
+      // The operator may have closed session `localId` and opened a new one
+      // while this GET was in flight — only act if we're still validating
+      // the session that's actually current, or a stale response would wipe
+      // out the newer one it raced against.
+      if (state.session?.id !== localId) return;
       if (dto.id !== localId) {
         // A different (or no, on 404 below) session is active server-side — the
         // local one is stale; drop it so the operator re-scans rather than
@@ -154,7 +160,21 @@ function ensureSessionValid() {
         commit(EMPTY);
       }
     })
-    .catch(() => commit(EMPTY));
+    .catch(() => {
+      if (state.session?.id === localId) commit(EMPTY);
+    });
+}
+
+/** Called from `eventStore.ts`'s SSE handler on `session.reminder` — the watchdog just force-closed a session server-side, so re-check right away instead of waiting for the next app load. */
+export function onSessionReminder() {
+  sessionChecked = true;
+  revalidateSession();
+}
+
+function ensureSessionValid() {
+  if (sessionChecked || !state.session) return;
+  sessionChecked = true;
+  revalidateSession();
 }
 
 export function useSessionState(): SessionState {
@@ -449,7 +469,8 @@ export function useDeclarationReminder(): number {
 /* retry via flushPending — replaces the old setTimeout/Math.random sim) */
 /* ------------------------------------------------------------------ */
 
-async function persistDeclaration(d: DeclarationEntry): Promise<string | null> {
+/** Returns the server id on success, `'CONFLICT'` for a 409 the caller should treat as already-synced (same reasoning as `persistStop` below — a lost-response retry replaying the same `clientEventId`), or `null` on a genuine failure to retry later. */
+async function persistDeclaration(d: DeclarationEntry): Promise<string | 'CONFLICT' | null> {
   const hierarchyPost = resolveHierarchyPost(d.postCode);
   if (!hierarchyPost) return null;
   try {
@@ -463,16 +484,22 @@ async function persistDeclaration(d: DeclarationEntry): Promise<string | null> {
           quantityOk: d.quantityOk, quantityNok: d.quantityNok, occurredAt: d.occurredAt,
         });
     return dto.id;
-  } catch {
-    return null;
+  } catch (e) {
+    // Without this, a 409 (duplicate clientEventId from a retried lost-response
+    // create) left synced:false forever — flushPending would retry, 409 again,
+    // in an infinite loop, and the row could never be corrected (correctDeclaration
+    // requires a serverId). persistStop already guards against exactly this.
+    return e instanceof ApiError && e.status === 409 ? 'CONFLICT' : null;
   }
 }
 
-function markDeclarationSynced(clientEventId: string, serverId: string | null) {
+function markDeclarationSynced(clientEventId: string, serverId: string | 'CONFLICT' | null) {
   commit({
     ...state,
     declarations: state.declarations.map((d) =>
-      d.clientEventId === clientEventId ? { ...d, synced: serverId !== null, serverId: serverId ?? d.serverId } : d,
+      d.clientEventId === clientEventId
+        ? { ...d, synced: serverId !== null, serverId: serverId && serverId !== 'CONFLICT' ? serverId : d.serverId }
+        : d,
     ),
   });
 }

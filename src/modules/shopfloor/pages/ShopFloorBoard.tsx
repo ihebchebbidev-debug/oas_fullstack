@@ -32,8 +32,8 @@ export default function ShopFloorBoard() {
       <PageHeader
         title={t('web.floor.title')}
         subtitle={scope.wholeSite
-          ? t('web.floor.subtitle')
-          : `${t('web.floor.subtitle')} · ${t('web.scope.limited', { lines: scope.lines.join(', ') })}`}
+          ? t('web.floor.subtitle', { n: posts.length })
+          : `${t('web.floor.subtitle', { n: posts.length })} · ${t('web.scope.limited', { lines: scope.lines.join(', ') })}`}
         actions={
           <Button size="sm" variant="outline" onClick={() => navigate('/web/andon')}>
             {t('web.floor.andon')}

@@ -59,9 +59,17 @@ public class OasPresenceController : OasControllerBase
     public async Task<IActionResult> Set(Guid operatorId, [FromBody] OasPresenceRequestDto request)
         => await _service.SetPresenceAsync(CurrentTenantId, operatorId, request) ? Ok(new { success = true }) : NotFound();
 
+    /// <summary>v10: mobile self-confirm only — a non-privileged caller may confirm their OWN presence, never a coworker's (same guard as OasResponderAvailabilityController.Set; this had none and let any authenticated user mark anyone "present").</summary>
     [HttpPost("{operatorId}/confirm")]
     public async Task<IActionResult> Confirm(Guid operatorId, [FromBody] OasPresenceConfirmRequestDto request)
-        => await _service.ConfirmPresenceAsync(CurrentTenantId, operatorId, request) ? Ok(new { success = true }) : NotFound();
+    {
+        var isPrivileged = CurrentOasRole is "admin" or "supervisor";
+        if (!isPrivileged && operatorId != CurrentOasUserId)
+        {
+            return Problem(statusCode: 403, title: "can_only_confirm_own_presence");
+        }
+        return await _service.ConfirmPresenceAsync(CurrentTenantId, operatorId, request) ? Ok(new { success = true }) : NotFound();
+    }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<OasPresenceDto>>> GetAll([FromQuery] Guid shift, [FromQuery] DateOnly date)

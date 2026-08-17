@@ -11,7 +11,7 @@ namespace MyApi.Modules.OAS.Events.Services;
 
 public interface IOasEventService
 {
-    Task<OasEventDto> CreateAsync(int tenantId, Guid userId, OasCreateEventRequestDto request);
+    Task<(bool success, string? error, OasEventDto? dto)> CreateAsync(int tenantId, Guid userId, OasCreateEventRequestDto request);
     Task<IReadOnlyList<OasEventDto>> GetAsync(int tenantId, string? kind, string? stage, string? q, Guid? lineId, DateTimeOffset? from, DateTimeOffset? to);
     Task<OasEventDto?> GetOneAsync(int tenantId, Guid id);
     Task<OasEventDto?> GetByClientEventIdAsync(int tenantId, Guid clientEventId);
@@ -61,10 +61,10 @@ public class OasEventService : IOasEventService
         if (_oasSlug is not null) _broadcaster.Publish(_oasSlug, tenantId, eventType, dto);
     }
 
-    public async Task<OasEventDto> CreateAsync(int tenantId, Guid userId, OasCreateEventRequestDto request)
+    public async Task<(bool success, string? error, OasEventDto? dto)> CreateAsync(int tenantId, Guid userId, OasCreateEventRequestDto request)
     {
         var existing = await _db.Set<OasEvent>().FirstOrDefaultAsync(e => e.ClientEventId == request.ClientEventId);
-        if (existing is not null) return ToDto(existing);
+        if (existing is not null) return (true, null, ToDto(existing));
 
         var post = await _db.Set<OasPost>().FindAsync(request.PostId);
         var line = post is null ? null : await _db.Set<OasLine>().FindAsync(post.LineId);
@@ -85,12 +85,30 @@ public class OasEventService : IOasEventService
             SlaMinutes = 10,
         };
         _db.Set<OasEvent>().Add(ev);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // uq_oas_open_blocking_event (002_indexes.sql): only one open
+            // technical_stop/quality_stop/material_wait per post. A second,
+            // genuinely distinct declare-stop (different ClientEventId, so
+            // the idempotency check above didn't short-circuit it) used to
+            // surface as a raw 500 here instead of a real conflict — the
+            // frontend's offline-sync retry (session.ts persistStop) only
+            // treats a 409 as "already handled" and would otherwise retry
+            // this forever.
+            return (false, "open_blocking_event_exists", null);
+        }
         await _db.Entry(ev).ReloadAsync(); // pick up trigger-computed sla_due_at
         var createdDto = ToDto(ev);
         Broadcast(tenantId, "event.created", createdDto);
-        return createdDto;
+        return (true, null, createdDto);
     }
+
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
 
     public async Task<IReadOnlyList<OasEventDto>> GetAsync(int tenantId, string? kind, string? stage, string? q, Guid? lineId, DateTimeOffset? from, DateTimeOffset? to)
     {

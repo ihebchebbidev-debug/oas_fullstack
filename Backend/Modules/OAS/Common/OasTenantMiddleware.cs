@@ -12,6 +12,12 @@ namespace MyApi.Modules.OAS.Common;
 ///
 /// api/oas/health and api/oas/setup are exempt from the 400 (point 5).
 /// Non-OAS routes are untouched — this middleware is a no-op for them.
+///
+/// api/oas/stream is a browser EventSource connection — it cannot set any
+/// custom header at all (same limitation OasModuleRegistration already
+/// works around for the JWT via `?access_token=`), so the slug falls back
+/// to a `?tenant=` query parameter for that one path only; every other
+/// route still requires the X-Tenant header, unchanged.
 /// </summary>
 public class OasTenantMiddleware
 {
@@ -19,6 +25,7 @@ public class OasTenantMiddleware
     private readonly ILogger<OasTenantMiddleware> _logger;
 
     private static readonly string[] CrossSlugExemptPaths = { "/api/oas/health", "/api/oas/setup" };
+    private const string StreamPath = "/api/oas/stream";
 
     public OasTenantMiddleware(RequestDelegate next, ILogger<OasTenantMiddleware> logger)
     {
@@ -38,6 +45,11 @@ public class OasTenantMiddleware
 
         var slug = context.Request.Headers[Infrastructure.TenantMiddleware.TenantHeaderName]
             .FirstOrDefault()?.Trim().ToLowerInvariant();
+
+        if (string.IsNullOrEmpty(slug) && path.StartsWith(StreamPath, StringComparison.OrdinalIgnoreCase))
+        {
+            slug = context.Request.Query["tenant"].FirstOrDefault()?.Trim().ToLowerInvariant();
+        }
 
         var isExempt = CrossSlugExemptPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
 

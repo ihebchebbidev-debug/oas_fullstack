@@ -42,10 +42,20 @@ public class OasSseBroadcaster : IOasSseBroadcaster
 
     public void Unsubscribe(Guid subscriptionId) => _subscriptions.TryRemove(subscriptionId, out _);
 
+    // `JsonSerializer.Serialize` with no explicit options uses
+    // `JsonSerializerOptions.Default` (declared PascalCase preserved), NOT
+    // the camelCase policy `Program.cs` registers via `AddJsonOptions` —
+    // that config only applies to the MVC output formatter, never to a raw
+    // call like this one. Without this, every SSE push serialized `data`
+    // as `{"Id":...,"PostId":...}` while every frontend consumer
+    // (`eventStore.ts`) reads camelCase (`e.postId`, `e.eventType`, ...),
+    // so live updates silently arrived as all-`undefined` fields.
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+
     public void Publish(string oasSlug, int tenantId, string eventType, object payload)
     {
         var key = ChannelKey(oasSlug, tenantId);
-        var envelope = JsonSerializer.Serialize(new { type = eventType, data = payload });
+        var envelope = JsonSerializer.Serialize(new { type = eventType, data = payload }, SerializerOptions);
 
         foreach (var (id, sub) in _subscriptions)
         {

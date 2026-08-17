@@ -18,7 +18,7 @@ export default function ShopFloorPage() {
     <div className="space-y-4">
       <header>
         <h1 className="text-[1.375rem] font-semibold">{t('mobile.map.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('mobile.map.subtitle')}</p>
+        <p className="text-sm text-muted-foreground">{t('mobile.map.subtitle', { n: posts.length })}</p>
       </header>
 
       <div data-demo="m-map">

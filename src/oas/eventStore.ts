@@ -20,6 +20,7 @@ import { connectOasStream, eventsApi, slaApi, type OasEventDto } from './api/eve
 import { type EventKind, type EventStage, type ShopEvent } from './demo';
 import { pushToast } from '@/shared/lib/toast';
 import { getLang, subscribeLang } from '@/i18n/langStore';
+import { onSessionReminder } from '@/modules/auth/store/session';
 
 export const KIND_TO_EVENT_TYPE: Record<EventKind, string> = {
   technical: 'technical_stop', quality: 'quality_stop', material: 'material_wait', changeover: 'changeover',
@@ -53,6 +54,12 @@ function resolveCauseKey(causeId: string | undefined, eventType: string): string
   return cause ? causeLabelIn(cause, getLang()) : eventType;
 }
 
+/** `assigneeId` is a user id — resolve it against the roster loaded for admin/user screens, same as `resolveCauseKey` does for causes. */
+function resolveAssigneeName(assigneeId: string | undefined): string | undefined {
+  if (!assigneeId) return undefined;
+  return getRefState().users.find((u) => u.id === assigneeId)?.name ?? assigneeId;
+}
+
 function toShopEvent(e: OasEventDto): LiveEvent {
   const postCode = getHierarchyState().posts.find((p) => p.id === e.postId)?.code ?? e.postId.slice(0, 8);
   const lineName = e.lineId ? getHierarchyState().lines.find((l) => l.id === e.lineId)?.name : undefined;
@@ -71,7 +78,7 @@ function toShopEvent(e: OasEventDto): LiveEvent {
     stage: STATUS_TO_STAGE[e.status] ?? 'declared',
     declaredAt: new Date(e.declaredAt).toTimeString().slice(0, 5),
     slaLeftMin,
-    assignee: e.assigneeId ?? undefined,
+    assignee: resolveAssigneeName(e.assigneeId ?? undefined),
     escalation: ESCALATION_TO_LEVEL[e.escalationLevel] ?? 0,
     acknowledgedAt: e.status === 'declared' || e.status === 'notified' ? undefined : e.declaredAt,
   };
@@ -100,8 +107,22 @@ function snapshot(): LiveEvent[] {
   return state.events;
 }
 
+/** Bumped on every SSE-driven `event.created`/`event.updated` commit, so `reload()` can tell whether live data landed while its GET was still in flight. */
+let sseRevision = 0;
+
 async function reload() {
+  const revisionBefore = sseRevision;
   const rows = await eventsApi.list();
+  if (sseRevision !== revisionBefore) {
+    // A live SSE update arrived while this snapshot GET was in flight —
+    // this response is now stale; a blind replace would silently drop
+    // whatever SSE just delivered. Merge instead, preferring the
+    // already-live rows over this snapshot for anything both contain.
+    const byId = new Map(rows.map((r) => [r.id, toShopEvent(r)]));
+    for (const e of state.events) byId.set(e.id, e);
+    commit({ events: Array.from(byId.values()) });
+    return;
+  }
   commit({ events: rows.map(toShopEvent) });
 }
 
@@ -139,10 +160,23 @@ export function ensureEventsLoaded() {
   subscribeLang(resyncCauseLabels);
   streamDisconnect = connectOasStream((type, data) => {
     if (type === 'event.created' || type === 'event.updated') {
+      sseRevision++;
       const mapped = toShopEvent(data as OasEventDto);
       const idx = state.events.findIndex((e) => e.id === mapped.id);
       const events = idx >= 0 ? state.events.map((e, i) => (i === idx ? mapped : e)) : [mapped, ...state.events];
       commit({ events });
+    } else if (type === 'event.escalated') {
+      // OasEscalationSweepHostedService pushes this instead of a full
+      // event.updated (spec §6.3) — {eventId, level}, patched locally
+      // rather than round-tripped, same as the rest of this handler.
+      const { eventId, level } = data as { eventId: string; level: string };
+      const escalation = ESCALATION_TO_LEVEL[level] ?? 0;
+      commit({ events: state.events.map((e) => (e.id === eventId ? { ...e, escalation } : e)) });
+    } else if (type === 'session.reminder') {
+      // OasSessionWatchdogHostedService force-closed a post session
+      // (shift ended past grace period) — tell the mobile session store to
+      // re-check right away instead of only at next app load.
+      onSessionReminder();
     }
   });
 }

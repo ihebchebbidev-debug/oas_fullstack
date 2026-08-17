@@ -13,8 +13,8 @@ public class OasEventsController : OasControllerBase
     public OasEventsController(IOasEventService service) => _service = service;
 
     [HttpPost]
-    public async Task<ActionResult<OasEventDto>> Create([FromBody] OasCreateEventRequestDto request)
-        => Ok(await _service.CreateAsync(CurrentTenantId, CurrentOasUserId, request));
+    public async Task<IActionResult> Create([FromBody] OasCreateEventRequestDto request)
+        => await Respond(_service.CreateAsync(CurrentTenantId, CurrentOasUserId, request));
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<OasEventDto>>> GetAll(
@@ -67,6 +67,7 @@ public class OasEventsController : OasControllerBase
             "not_found" => NotFound(),
             "event_closed" => Problem(statusCode: 409, title: "event_closed"),
             "event_already_resolved" => Problem(statusCode: 409, title: "event_already_resolved"),
+            "open_blocking_event_exists" => Problem(statusCode: 409, title: "open_blocking_event_exists"),
             _ => BadRequest(new { error = result.error }),
         };
     }

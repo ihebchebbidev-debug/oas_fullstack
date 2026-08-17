@@ -82,6 +82,13 @@ public class TenantMiddleware
         if (string.IsNullOrEmpty(path)) return true;
         if (!path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase)) return true;
         if (path.Contains("/api/public", StringComparison.OrdinalIgnoreCase)) return true;
+        // OAS module (Backend/Modules/OAS/*) has no "company" concept at all —
+        // it's scoped by X-Tenant → a dedicated database per *oas slug, not by
+        // row-level TenantId within a shared company DB. Its own spec (§1.2 bis
+        // point 7) makes X-Target-Tenant optional and always defaulting to 0
+        // (there is no oas_tenants table). Without this, every authenticated
+        // OAS call 428s here before ever reaching OasTenantMiddleware.
+        if (path.Contains("/api/oas", StringComparison.OrdinalIgnoreCase)) return true;
         return path.Contains("/api/auth", StringComparison.OrdinalIgnoreCase)
             || path.Contains("/api/email-verification", StringComparison.OrdinalIgnoreCase)
             || path.Contains("/api/twofactor", StringComparison.OrdinalIgnoreCase)

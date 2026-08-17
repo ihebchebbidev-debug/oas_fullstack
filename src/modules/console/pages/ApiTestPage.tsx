@@ -741,11 +741,17 @@ async function runResponderAvailabilityWriteTest(): Promise<TestOutcome> {
 async function runAssignmentsAutoFillPublishTest(ctx: DiagCtx): Promise<TestOutcome> {
   if (!ctx.shiftId) return skip('no shift template to test against');
   const workDate = '2099-01-01';
-  const filled = await apiFetch<{ filled: number }>(`/assignments/auto-fill?shift=${ctx.shiftId}&date=${workDate}`, { method: 'POST' });
-  const published = await apiFetch<{ published: number }>(`/assignments/publish?shift=${ctx.shiftId}&date=${workDate}`, { method: 'POST' });
-  // Best-effort cleanup of anything auto-fill created — it may have assigned real operators to real posts, but only for the fictional 2099 date.
-  await assignmentsApi.clearAll(ctx.shiftId, workDate).catch(() => {});
-  return { ok: true, detail: `POST /assignments/auto-fill → POST /assignments/publish → DELETE (cleared), date ${workDate}`, json: { filled, published } };
+  try {
+    const filled = await apiFetch<{ filled: number }>(`/assignments/auto-fill?shift=${ctx.shiftId}&date=${workDate}`, { method: 'POST' });
+    const published = await apiFetch<{ published: number }>(`/assignments/publish?shift=${ctx.shiftId}&date=${workDate}`, { method: 'POST' });
+    return { ok: true, detail: `POST /assignments/auto-fill → POST /assignments/publish → DELETE (cleared), date ${workDate}`, json: { filled, published } };
+  } finally {
+    // MUST run even if either call above threw (e.g. a network drop) — auto-fill
+    // may have assigned real operators to real posts server-side before the
+    // client ever saw a response; only the fictional 2099 date is at risk, but
+    // an orphaned row there is still worth cleaning up rather than leaving behind.
+    await assignmentsApi.clearAll(ctx.shiftId, workDate).catch(() => {});
+  }
 }
 
 async function runSyncPushTest(): Promise<TestOutcome> {

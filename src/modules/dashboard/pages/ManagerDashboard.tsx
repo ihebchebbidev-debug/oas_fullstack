@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { kindToState } from '@/oas/demo';
 import { useLiveKpi, useLiveLines, useLivePareto, useLiveTrend } from '@/oas/liveState';
+import { useHierarchyState } from '@/oas/hierarchyStore';
 import { stateSolid } from '@/oas/components/StateBadge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
@@ -46,12 +47,16 @@ export default function ManagerDashboard() {
   const TRS_TREND = useLiveTrend();
   const maxTrend = Math.max(1, ...TRS_TREND.map((x) => x.value));
   const maxPareto = Math.max(1, ...PARETO.map((p) => p.minutes));
+  // Real site name only when the tenant has exactly one (the common case) —
+  // was a hardcoded "Site Sousse" regardless of what's actually configured.
+  const { sites } = useHierarchyState();
+  const siteLabel = sites.length === 1 ? sites[0].name : t('web.dash.subtitleSites', { n: sites.length });
 
   return (
     <>
       <PageHeader
         title={t('web.dash.title')}
-        subtitle={t('web.dash.subtitle')}
+        subtitle={t('web.dash.subtitle', { site: siteLabel, date: new Date().toLocaleDateString(), lines: LINE_COMPARISON.length })}
         actions={
           <div data-demo="dash-role" className="flex items-center gap-2">
             <span className="text-caption text-muted-foreground">{t('web.dash.view')}</span>

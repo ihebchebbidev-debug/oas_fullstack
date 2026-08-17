@@ -245,7 +245,7 @@ public class OasKpiService : IOasKpiService
               and ps.started_at::date = {2}
             order by ps.started_at desc
             limit 1
-            """, postId, lineId, date.ToDateTime(TimeOnly.MinValue)).FirstOrDefaultAsync();
+            """, postId, lineId, DateTime.SpecifyKind(date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc)).FirstOrDefaultAsync();
 
         return minutes is > 0 ? minutes.Value : DefaultOpeningMin;
     }
@@ -261,8 +261,15 @@ public class OasKpiService : IOasKpiService
 
     private static double Clamp0100(double value) => Math.Clamp(value, 0, 100);
 
+    // DateOnly.ToDateTime always returns DateTimeKind.Unspecified — Npgsql's
+    // EF Core provider refuses to bind that to a `timestamptz` parameter
+    // ("Cannot write DateTime with Kind=Unspecified... only UTC is
+    // supported"), so every raw-SQL call below using this range would throw
+    // on every request. Confirmed by direct reproduction against a real
+    // database with the exact production package versions.
     private static (DateTime from, DateTime to) ToRange(DateOnly from, DateOnly to)
-        => (from.ToDateTime(TimeOnly.MinValue), to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        => (DateTime.SpecifyKind(from.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc),
+            DateTime.SpecifyKind(to.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc));
 
     private sealed class StopAgg { public int StopSeconds { get; set; } public int StopsCount { get; set; } }
     private sealed class DeclAgg { public decimal Ok { get; set; } public decimal Nok { get; set; } }

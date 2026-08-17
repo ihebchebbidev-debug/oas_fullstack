@@ -239,7 +239,13 @@ async function reloadCadences() {
 
 async function reloadAll() {
   const [operators, equipment, products, causeTree, causeUsage, proposals, shifts, signoffs, imports, posts] = await Promise.all([
-    operatorsApi.search(), equipmentsApi.list(), productsApi.list(), causesApi.tree(), causesApi.usage(),
+    // GET /operators is admin/supervisor-only server-side (the user directory
+    // shouldn't be readable by a plain shop-floor operator token) — but a
+    // mobile operator session calls ensureRefLoaded() too, just for the
+    // cause tree (DeclareStop's 2-tap flow), so a 403 here must not fail
+    // the whole Promise.all and take causeTree down with it.
+    operatorsApi.search().catch(() => [] as OasOperatorDto[]),
+    equipmentsApi.list(), productsApi.list(), causesApi.tree(), causesApi.usage(),
     causesApi.listProposals(), shiftsApi.list(), shiftsApi.signoffs(), importsApi.list(), hierarchyApi.listPosts(),
   ]);
   const postCodeById = new Map(posts.map((p) => [p.id, p.code]));

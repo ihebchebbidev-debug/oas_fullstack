@@ -1,3 +1,5 @@
+using MyApi.Modules.OAS.Common.Data;
+
 namespace MyApi.Modules.OAS.Offline.Models;
 
 /// <summary>
@@ -8,7 +10,7 @@ namespace MyApi.Modules.OAS.Offline.Models;
 /// and whether it was a first-time write or a replay, so support can
 /// diagnose a device that kept retrying.
 /// </summary>
-public class OasSyncReceipt
+public class OasSyncReceipt : IOasTenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public int TenantId { get; set; }

@@ -140,7 +140,7 @@ export const fr: Dict = {
 
   // Mobile — map
   'mobile.map.title': 'Plan atelier',
-  'mobile.map.subtitle': 'État temps réel · 15 postes',
+  'mobile.map.subtitle': 'État temps réel · {n} postes',
   'mobile.map.operator': 'Opérateur',
 
   // Mobile — inbox
@@ -208,7 +208,8 @@ export const fr: Dict = {
 
   // Web — dashboard
   'web.dash.title': 'Dashboard TRS',
-  'web.dash.subtitle': "Site Sousse · aujourd'hui · 3 lignes",
+  'web.dash.subtitle': '{site} · {date} · {lines} lignes',
+  'web.dash.subtitleSites': '{n} sites',
   'web.dash.trs': 'TRS',
   'web.dash.availability': 'Disponibilité',
   'web.dash.performance': 'Performance',
@@ -231,7 +232,7 @@ export const fr: Dict = {
 
   // Web — shop floor board
   'web.floor.title': 'Plan atelier',
-  'web.floor.subtitle': 'Temps réel · 15 postes · rafraîchi il y a 12 s',
+  'web.floor.subtitle': 'Temps réel · {n} postes',
   'web.floor.andon': 'Mode Andon',
   'web.floor.noPost': 'Aucun poste',
   'web.floor.line': 'Ligne',
@@ -261,7 +262,7 @@ export const fr: Dict = {
   'web.ref.subtitle': 'Site → Zone → Ligne → Poste → Équipement · causes · gammes',
   'web.ref.import': 'Importer Excel',
   'web.ref.hierarchy': 'Hiérarchie',
-  'web.ref.hierarchyDesc': 'Site Sousse · 1 zone · 3 lignes · 15 postes',
+  'web.ref.hierarchyDesc': '{sites} site(s) · {zones} zone(s) · {lines} ligne(s) · {posts} poste(s)',
   'web.ref.stopReasons': "Motifs d'arrêt",
   'web.ref.stopReasonsDesc': 'Catalogue standard, 6 causes actives',
   'web.ref.code': 'Code',

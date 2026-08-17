@@ -124,7 +124,7 @@ export const ar: Dict = {
   'mobile.scan.manual': 'اكتب الكود باليد',
 
   'mobile.map.title': 'خريطة الورشة',
-  'mobile.map.subtitle': 'الحالة مباشر · 15 منصب',
+  'mobile.map.subtitle': 'الحالة مباشر · {n} منصب',
   'mobile.map.operator': 'المشغّل',
 
   'mobile.inbox.title': 'التدخّلات',
@@ -186,7 +186,8 @@ export const ar: Dict = {
 
 
   'web.dash.title': 'لوحة المتابعة',
-  'web.dash.subtitle': 'موقع سوسة · اليوم · 3 خطوط',
+  'web.dash.subtitle': '{site} · {date} · {lines} خط',
+  'web.dash.subtitleSites': '{n} مواقع',
   'web.dash.trs': 'معدّل الأداء',
   'web.dash.availability': 'التوفّر',
   'web.dash.performance': 'الأداء',
@@ -208,7 +209,7 @@ export const ar: Dict = {
   'web.dash.scrap': 'رفض',
 
   'web.floor.title': 'خريطة الورشة',
-  'web.floor.subtitle': 'مباشر · 15 منصب · تحيّنت من 12 ثانية',
+  'web.floor.subtitle': 'مباشر · {n} منصب',
   'web.floor.andon': 'وضع Andon',
   'web.floor.noPost': 'ما فمّاش منصب',
   'web.floor.line': 'الخط',
@@ -236,7 +237,7 @@ export const ar: Dict = {
   'web.ref.subtitle': 'موقع → منطقة → خط → منصب → تجهيز · أسباب · مسارات',
   'web.ref.import': 'استورد Excel',
   'web.ref.hierarchy': 'الهيكل',
-  'web.ref.hierarchyDesc': 'موقع سوسة · 1 منطقة · 3 خطوط · 15 منصب',
+  'web.ref.hierarchyDesc': '{sites} موقع · {zones} منطقة · {lines} خط · {posts} منصب',
   'web.ref.stopReasons': 'أسباب التوقّف',
   'web.ref.stopReasonsDesc': 'كتالوغ رسمي، 6 أسباب مفعّلين',
   'web.ref.code': 'الكود',

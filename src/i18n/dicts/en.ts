@@ -124,7 +124,7 @@ export const en: Dict = {
   'mobile.scan.manual': 'Enter the code manually',
 
   'mobile.map.title': 'Shop floor',
-  'mobile.map.subtitle': 'Live state · 15 posts',
+  'mobile.map.subtitle': 'Live state · {n} posts',
   'mobile.map.operator': 'Operator',
 
   'mobile.inbox.title': 'Interventions',
@@ -186,7 +186,8 @@ export const en: Dict = {
 
 
   'web.dash.title': 'OEE Dashboard',
-  'web.dash.subtitle': 'Sousse site · today · 3 lines',
+  'web.dash.subtitle': '{site} · {date} · {lines} lines',
+  'web.dash.subtitleSites': '{n} sites',
   'web.dash.trs': 'OEE',
   'web.dash.availability': 'Availability',
   'web.dash.performance': 'Performance',
@@ -208,7 +209,7 @@ export const en: Dict = {
   'web.dash.scrap': 'Scrap',
 
   'web.floor.title': 'Shop floor',
-  'web.floor.subtitle': 'Live · 15 posts · refreshed 12 s ago',
+  'web.floor.subtitle': 'Live · {n} posts',
   'web.floor.andon': 'Andon mode',
   'web.floor.noPost': 'No post',
   'web.floor.line': 'Line',
@@ -236,7 +237,7 @@ export const en: Dict = {
   'web.ref.subtitle': 'Site → Zone → Line → Post → Equipment · causes · routings',
   'web.ref.import': 'Import Excel',
   'web.ref.hierarchy': 'Hierarchy',
-  'web.ref.hierarchyDesc': 'Sousse site · 1 zone · 3 lines · 15 posts',
+  'web.ref.hierarchyDesc': '{sites} site(s) · {zones} zone(s) · {lines} line(s) · {posts} post(s)',
   'web.ref.stopReasons': 'Stop reasons',
   'web.ref.stopReasonsDesc': 'Standard catalog, 6 active causes',
   'web.ref.code': 'Code',

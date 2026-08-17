@@ -1,3 +1,5 @@
+using MyApi.Modules.OAS.Common.Data;
+
 namespace MyApi.Modules.OAS.Offline.Models;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace MyApi.Modules.OAS.Offline.Models;
 /// socle's existing generic upload endpoint, spec §1.1) — this table just
 /// records the resulting path against an OAS entity.
 /// </summary>
-public class OasAttachment
+public class OasAttachment : IOasTenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public int TenantId { get; set; }

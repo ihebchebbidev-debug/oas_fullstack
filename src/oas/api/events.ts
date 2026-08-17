@@ -1,4 +1,4 @@
-import { apiFetch, getSession, OAS_API_BASE } from './client';
+import { apiFetch, getSession, OAS_API_BASE, OAS_TENANT_SLUG } from './client';
 
 /* ------------------------------------------------------------------ */
 /* Events (spec §6.1 Événements) — the state machine                   */
@@ -73,23 +73,50 @@ export const interventionsApi = {
 export type OasStreamHandler = (type: string, data: unknown) => void;
 
 /**
- * `EventSource` cannot set an Authorization header, so the token travels as
- * `?access_token=` (spec §6.3 "JWT en query ou header") — the OAS JWT bearer
- * scheme reads it back out for this one path (`OasModuleRegistration.cs`).
+ * `EventSource` cannot set ANY custom header — not Authorization, not
+ * X-Tenant — so both travel as query params: `?access_token=` (spec §6.3
+ * "JWT en query ou header", read back out by the OAS JWT bearer scheme in
+ * `OasModuleRegistration.cs`) and `&tenant=` (read back out by
+ * `OasTenantMiddleware` for this one path — every other route still
+ * requires the X-Tenant header). Without the second one this 400s before
+ * auth ever runs, confirmed live: every real-time-consuming screen (shop
+ * floor map, alerts, andon) was silently failing to connect.
  * Heartbeats (`: ping`) arrive as comment lines and are ignored by
  * `EventSource` automatically — nothing to filter here.
  */
 export function connectOasStream(onMessage: OasStreamHandler): () => void {
-  const token = getSession()?.accessToken;
-  if (!token) return () => {};
-  const source = new EventSource(`${OAS_API_BASE}/stream?access_token=${encodeURIComponent(token)}`);
-  source.onmessage = (ev) => {
-    try {
-      const envelope = JSON.parse(ev.data) as { type: string; data: unknown };
-      onMessage(envelope.type, envelope.data);
-    } catch {
-      /* malformed frame — ignore */
-    }
+  let source: EventSource | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+
+  function open() {
+    const token = getSession()?.accessToken;
+    if (!token || closed) return;
+    source = new EventSource(`${OAS_API_BASE}/stream?access_token=${encodeURIComponent(token)}&tenant=${encodeURIComponent(OAS_TENANT_SLUG)}`);
+    source.onmessage = (ev) => {
+      try {
+        const envelope = JSON.parse(ev.data) as { type: string; data: unknown };
+        onMessage(envelope.type, envelope.data);
+      } catch {
+        /* malformed frame — ignore */
+      }
+    };
+    // A shift is up to 8h; the access token embedded in the URL above
+    // expires long before that, and a dropped/rejected connection's native
+    // EventSource auto-retry keeps replaying that SAME now-stale token
+    // forever — silently killing real-time updates for the rest of the
+    // shift. Rebuild from scratch with whatever token is current instead.
+    source.onerror = () => {
+      if (closed) return;
+      source?.close();
+      retryTimer = setTimeout(open, 5000);
+    };
+  }
+  open();
+
+  return () => {
+    closed = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    source?.close();
   };
-  return () => source.close();
 }
