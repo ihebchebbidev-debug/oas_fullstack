@@ -195,7 +195,12 @@ const TESTS: DiagTest[] = [
 
   // ---- Backend-only domains — no frontend screen calls these (spec §12: not part of the 22-screen scope), tested here for raw connectivity only ----
   { id: 'teams', module: 'diag.module.backendOnly', label: 'GET /teams', run: () => ok(() => apiFetch('/teams'), undefined, isArray) },
-  { id: 'attachments', module: 'diag.module.backendOnly', label: 'GET /attachments', run: () => ok(() => apiFetch('/attachments'), undefined, isArray) },
+  // Unlike every other list endpoint here, GET /attachments has no "list all" mode —
+  // OasAttachmentsController.GetAll requires `entity`+`id` (attachments always belong
+  // to one specific record), so a bare call is guaranteed a 400 by ASP.NET Core's own
+  // model-binding validation. Nothing in this diagnostic run creates a safe target to
+  // point it at, so this honestly skips rather than reporting a fake failure.
+  { id: 'attachments', module: 'diag.module.backendOnly', label: 'GET /attachments', run: () => Promise.resolve(skip('requires entity+id — no target to test against')) },
   { id: 'integrations.endpoints', module: 'diag.module.backendOnly', label: 'GET /integrations/endpoints', run: () => ok(() => apiFetch('/integrations/endpoints'), undefined, isArray) },
   { id: 'integrations.outbox', module: 'diag.module.backendOnly', label: 'GET /integrations/outbox', run: () => ok(() => apiFetch('/integrations/outbox'), undefined, isArray) },
   { id: 'sync.receipts', module: 'diag.module.backendOnly', label: 'GET /sync/receipts', run: () => ok(() => apiFetch('/sync/receipts'), undefined, isArray) },
@@ -205,13 +210,23 @@ const TESTS: DiagTest[] = [
 
 /**
  * Opt-in only, never auto-run — see the write-path note in the page body.
- * Causes are the one domain where a hard delete is VERIFIED in the backend
- * source (`OasCauseService.DeleteAsync` does `_db.Set<OasCause>().Remove(...)`,
- * not a soft `IsDeleted` flag like Equipments/Products) — the only domain
- * where an automated create → verify → delete → verify-gone round trip is
- * actually guaranteed not to leave permanent rows behind.
+ * Every one of these three is a domain with a VERIFIED real deletion path
+ * in the backend source, not a guess:
+ *  - causes:   `OasCauseService.DeleteAsync` does `_db.Set<OasCause>().Remove(...)` — true hard delete.
+ *  - lookups:  soft delete (`ArchivedAt`), but `GetByTypeAsync` explicitly filters
+ *              `ArchivedAt == null` — the list round-trip is real even though the
+ *              row technically persists forever, invisible, same as Equipments/Products.
+ *  - cadences: `OasCadenceService` does `_db.Set<OasRouting>().Remove(routing)` — true
+ *              hard delete. Needs a real post + a throwaway product (soft-delete only,
+ *              cleaned up via `productsApi.remove` — permanently hidden, never listed).
  */
-async function runWritePathTest(): Promise<TestOutcome> {
+interface WriteTest {
+  id: string;
+  label: string;
+  run: () => Promise<TestOutcome>;
+}
+
+async function runCausesWriteTest(): Promise<TestOutcome> {
   const tag = `DIAGTEST-${Date.now()}`;
   const created = await causesApi.create({
     domain: 'stop', code: tag, labelFr: tag, labelAr: tag, eventType: 'technical_stop', defaultCriticality: 'low',
@@ -227,6 +242,55 @@ async function runWritePathTest(): Promise<TestOutcome> {
   }
   return { ok: true, detail: `POST → GET (found) → DELETE → GET (gone), tag ${tag}` };
 }
+
+async function runLookupsWriteTest(): Promise<TestOutcome> {
+  const tag = `DIAGTEST-${Date.now()}`;
+  const type = 'DIAGTEST'; // synthetic type — never read by any real screen, so it can never appear in a real dropdown
+  const created = await lookupsApi.create(type, { code: tag, label: tag });
+  const afterCreate = await lookupsApi.list(type);
+  if (!afterCreate.some((v) => v.id === created.id)) {
+    throw new Error(`POST /lookups/${type} reported success but ${tag} is missing from GET /lookups/${type} right after`);
+  }
+  await lookupsApi.remove(type, created.id);
+  const afterDelete = await lookupsApi.list(type);
+  if (afterDelete.some((v) => v.id === created.id)) {
+    throw new Error(`DELETE /lookups/${type}/{id} did not remove ${tag} from the list`);
+  }
+  return { ok: true, detail: `POST → GET (found) → DELETE → GET (gone), tag ${tag}` };
+}
+
+async function runCadencesWriteTest(): Promise<TestOutcome> {
+  const posts = await hierarchyApi.listPosts();
+  const post = posts[0];
+  if (!post) return skip('no post available to attach a test cadence to');
+
+  const tag = `DIAGTEST-${Date.now()}`;
+  const product = await productsApi.create({ reference: tag, name: tag });
+  try {
+    const created = await cadencesApi.createVersion({ productId: product.id, postId: post.id, rate: 42 });
+    const afterCreate = await cadencesApi.list();
+    if (!afterCreate.some((c) => c.id === created.id)) {
+      throw new Error(`POST /cadences reported success but the new row (${tag}) is missing from GET /cadences right after`);
+    }
+    await cadencesApi.remove(created.id);
+    const afterDelete = await cadencesApi.list();
+    if (afterDelete.some((c) => c.id === created.id)) {
+      throw new Error(`DELETE /cadences/{id} did not remove ${tag} — check Referentials → Cadences and delete it by hand`);
+    }
+    return { ok: true, detail: `POST product → POST cadence → GET (found) → DELETE → GET (gone), tag ${tag}` };
+  } finally {
+    // Products has no hard delete — soft-deleted and gone from every real
+    // screen via the global query filter, same tier of risk as the fixture
+    // hierarchy above, so this is never left behind visible anywhere.
+    await productsApi.remove(product.id).catch(() => {});
+  }
+}
+
+const WRITE_TESTS: WriteTest[] = [
+  { id: 'write.causes', label: 'POST /causes → GET → DELETE /causes/{id} → GET', run: runCausesWriteTest },
+  { id: 'write.lookups', label: 'POST /lookups/{type} → GET → DELETE /lookups/{type}/{id} → GET', run: runLookupsWriteTest },
+  { id: 'write.cadences', label: 'POST /products + /cadences → GET → DELETE /cadences/{id} → GET', run: runCadencesWriteTest },
+];
 
 /* ------------------------------------------------------------------ */
 /* Auto-provisioned test fixture — hierarchy + shift template only     */
@@ -365,10 +429,9 @@ type AuthPhase = 'checking' | 'login' | 'ready';
  *
  * The read sweep never runs POST/PUT/DELETE automatically: this hits the
  * real production database, and several tables are append-only by design
- * (spec's audit trail). A single, separately-gated write-path round trip
- * (create → verify → delete → verify-gone, on `causes` — the one domain
- * with a VERIFIED hard delete in the backend source, see `runWritePathTest`)
- * is available below, but only on demand — never on page load.
+ * (spec's audit trail). Separately-gated write-path round trips (create →
+ * verify → delete → verify-gone, see `WRITE_TESTS`) are available below,
+ * but only on demand — never on page load.
  */
 export default function ApiTestPage() {
   const t = useT();
@@ -376,9 +439,10 @@ export default function ApiTestPage() {
   const [runs, setRuns] = useState<Record<string, RunState>>({});
   const [running, setRunning] = useState(false);
   const [ranAt, setRanAt] = useState<string | null>(null);
-  const [writeTest, setWriteTest] = useState<RunState | null>(null);
-  const [writeTestRunning, setWriteTestRunning] = useState(false);
+  const [writeRuns, setWriteRuns] = useState<Record<string, RunState>>({});
+  const [writeRunning, setWriteRunning] = useState(false);
   const [fixtureNote, setFixtureNote] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Status | 'all'>('all');
   const startedOnce = useRef(false);
 
   const runAll = async () => {
@@ -426,18 +490,24 @@ export default function ApiTestPage() {
     setRanAt(new Date().toLocaleTimeString());
   };
 
-  const runWriteTest = async () => {
-    setWriteTestRunning(true);
-    setWriteTest({ status: 'running' });
+  const runOneWriteTest = async (test: WriteTest) => {
+    setWriteRuns((prev) => ({ ...prev, [test.id]: { status: 'running' } }));
     const started = performance.now();
     try {
-      const outcome = await runWritePathTest();
-      setWriteTest({ status: 'pass', ms: Math.round(performance.now() - started), detail: outcome.detail });
+      const outcome = await test.run();
+      const ms = Math.round(performance.now() - started);
+      setWriteRuns((prev) => ({ ...prev, [test.id]: { status: outcome.skipped ? 'skip' : 'pass', ms, detail: outcome.detail } }));
     } catch (e) {
+      const ms = Math.round(performance.now() - started);
       const detail = e instanceof ApiError ? `${e.status} ${e.message}` : e instanceof Error ? e.message : 'Network error';
-      setWriteTest({ status: 'fail', ms: Math.round(performance.now() - started), detail });
+      setWriteRuns((prev) => ({ ...prev, [test.id]: { status: 'fail', ms, detail } }));
     }
-    setWriteTestRunning(false);
+  };
+
+  const runAllWriteTests = async () => {
+    setWriteRunning(true);
+    for (const test of WRITE_TESTS) await runOneWriteTest(test);
+    setWriteRunning(false);
   };
 
   // Auto sign-in cascade — never wait on a human unless every automatic
@@ -502,6 +572,9 @@ export default function ApiTestPage() {
   const failCount = values.filter((r) => r.status === 'fail').length;
   const skipCount = values.filter((r) => r.status === 'skip').length;
   const done = passCount + failCount + skipCount;
+  const filteredCount = filter === 'all' ? done : values.filter((r) => r.status === filter).length;
+
+  const toggleFilter = (status: Status) => setFilter((f) => (f === status ? 'all' : status));
 
   if (authPhase === 'checking') {
     return (
@@ -524,9 +597,9 @@ export default function ApiTestPage() {
   }
 
   return (
-    <div dir="ltr" className="min-h-screen bg-background p-4 text-foreground sm:p-8">
-      <div className="mx-auto max-w-3xl space-y-4">
-        <header className="flex flex-wrap items-start justify-between gap-3">
+    <div dir="ltr" className="flex h-screen flex-col bg-background text-foreground">
+      <header className="shrink-0 space-y-3 border-b border-border p-4 sm:px-8 sm:py-5">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-title font-heading">{t('diag.title')}</h1>
             <p className="text-body-sm text-muted-foreground">
@@ -537,81 +610,108 @@ export default function ApiTestPage() {
             {running ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="me-1.5 h-3.5 w-3.5" />}
             {running ? t('diag.running', { done, total }) : t('diag.rerun')}
           </Button>
-        </header>
+        </div>
 
         {values.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 p-2.5 text-body-sm">
-            <Badge variant="ghost" className="text-state-production">{t('diag.pass', { n: passCount })}</Badge>
-            <Badge variant="ghost" className="text-state-technical">{t('diag.fail', { n: failCount })}</Badge>
-            <Badge variant="ghost" className="text-muted-foreground">{t('diag.skip', { n: skipCount })}</Badge>
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 text-body-sm">
+            <button type="button" onClick={() => toggleFilter('pass')} disabled={passCount === 0} className="disabled:cursor-not-allowed disabled:opacity-50">
+              <Badge variant="ghost" className={cn('text-state-production', filter === 'pass' && 'ring-1 ring-state-production')}>{t('diag.pass', { n: passCount })}</Badge>
+            </button>
+            <button type="button" onClick={() => toggleFilter('fail')} disabled={failCount === 0} className="disabled:cursor-not-allowed disabled:opacity-50">
+              <Badge variant="ghost" className={cn('text-state-technical', filter === 'fail' && 'ring-1 ring-state-technical')}>{t('diag.fail', { n: failCount })}</Badge>
+            </button>
+            <button type="button" onClick={() => toggleFilter('skip')} disabled={skipCount === 0} className="disabled:cursor-not-allowed disabled:opacity-50">
+              <Badge variant="ghost" className={cn('text-muted-foreground', filter === 'skip' && 'ring-1 ring-foreground/40')}>{t('diag.skip', { n: skipCount })}</Badge>
+            </button>
+            {filter !== 'all' && (
+              <button type="button" onClick={() => setFilter('all')} className="text-caption text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground">
+                {t('diag.clearFilter')}
+              </button>
+            )}
             {ranAt && !running && <span className="ms-auto text-caption text-muted-foreground">{t('diag.lastRun', { time: ranAt })}</span>}
           </div>
         )}
 
         {fixtureNote && !running && (
-          <p className="rounded-lg border border-dashed border-border p-2.5 text-caption text-muted-foreground">{fixtureNote}</p>
+          <p className="mx-auto max-w-3xl rounded-lg border border-dashed border-border p-2.5 text-caption text-muted-foreground">{fixtureNote}</p>
         )}
+      </header>
 
-        <div className="space-y-4">
-          {MODULE_ORDER.map((moduleKey) => {
-            const moduleTests = TESTS.filter((test) => test.module === moduleKey);
-            if (!moduleTests.some((test) => runs[test.id])) return null;
-            return (
-              <div key={moduleKey}>
-                <h3 className="mb-1.5 text-caption font-semibold uppercase tracking-[0.04em] text-muted-foreground">{t(moduleKey)}</h3>
-                <div className="overflow-hidden rounded-lg border border-border">
-                  {moduleTests.map((test) => {
-                    const run = runs[test.id];
-                    if (!run) return null;
-                    return (
-                      <div
-                        key={test.id}
-                        className={cn(
-                          'flex items-center gap-2.5 border-b border-border px-3 py-2 text-body-sm last:border-b-0',
-                          run.status === 'fail' && 'bg-state-technical/5',
-                        )}
-                      >
-                        <StatusIcon status={run.status} />
-                        <span className="min-w-0 flex-1 truncate font-mono text-caption">{test.label}</span>
-                        <span className={cn('truncate text-caption', run.status === 'fail' ? 'text-state-technical' : 'text-muted-foreground')}>
-                          {run.detail}
-                        </span>
-                        {run.ms !== undefined && <span className="shrink-0 font-mono text-caption text-muted-foreground">{run.ms}ms</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-body-sm font-semibold">{t('diag.writePath.title')}</h3>
-              <p className="text-caption text-muted-foreground">{t('diag.writePath.desc')}</p>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => void runWriteTest()} disabled={writeTestRunning}>
-              {writeTestRunning ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="me-1.5 h-3.5 w-3.5" />}
-              {t('diag.writePath.run')}
-            </Button>
-          </div>
-          {writeTest && (
-            <div className={cn('flex items-center gap-2.5 rounded-md border border-border px-3 py-2 text-body-sm', writeTest.status === 'fail' && 'bg-state-technical/5')}>
-              <StatusIcon status={writeTest.status} />
-              <span className="font-mono text-caption">POST /causes → GET /causes → DELETE /causes/{'{id}'} → GET /causes</span>
-              <span className={cn('flex-1 truncate text-caption', writeTest.status === 'fail' ? 'text-state-technical' : 'text-muted-foreground')}>
-                {writeTest.detail}
-              </span>
-              {writeTest.ms !== undefined && <span className="shrink-0 font-mono text-caption text-muted-foreground">{writeTest.ms}ms</span>}
-            </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl space-y-4 p-4 sm:p-8">
+          {filter !== 'all' && filteredCount === 0 && (
+            <p className="py-8 text-center text-body-sm text-muted-foreground">{t('diag.filterEmpty')}</p>
           )}
-        </div>
 
-        <p className="rounded-lg border border-dashed border-border p-2.5 text-caption text-muted-foreground">
-          {t('diag.writeNote', { n: 112 })}
-        </p>
+          <div className="space-y-4">
+            {MODULE_ORDER.map((moduleKey) => {
+              const moduleTests = TESTS.filter((test) => test.module === moduleKey);
+              const visible = moduleTests.filter((test) => runs[test.id] && (filter === 'all' || runs[test.id].status === filter));
+              if (visible.length === 0) return null;
+              return (
+                <div key={moduleKey}>
+                  <h3 className="mb-1.5 text-caption font-semibold uppercase tracking-[0.04em] text-muted-foreground">{t(moduleKey)}</h3>
+                  <div className="overflow-hidden rounded-lg border border-border">
+                    {visible.map((test) => {
+                      const run = runs[test.id];
+                      return (
+                        <div
+                          key={test.id}
+                          className={cn(
+                            'flex items-center gap-2.5 border-b border-border px-3 py-2 text-body-sm last:border-b-0',
+                            run.status === 'fail' && 'bg-state-technical/5',
+                          )}
+                        >
+                          <StatusIcon status={run.status} />
+                          <span className="min-w-0 flex-1 truncate font-mono text-caption">{test.label}</span>
+                          <span className={cn('truncate text-caption', run.status === 'fail' ? 'text-state-technical' : 'text-muted-foreground')}>
+                            {run.detail}
+                          </span>
+                          {run.ms !== undefined && <span className="shrink-0 font-mono text-caption text-muted-foreground">{run.ms}ms</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-body-sm font-semibold">{t('diag.writePath.title')}</h3>
+                <p className="text-caption text-muted-foreground">{t('diag.writePath.desc')}</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void runAllWriteTests()} disabled={writeRunning}>
+                {writeRunning ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="me-1.5 h-3.5 w-3.5" />}
+                {t('diag.writePath.run')}
+              </Button>
+            </div>
+            {Object.keys(writeRuns).length > 0 && (
+              <div className="space-y-1.5">
+                {WRITE_TESTS.map((test) => {
+                  const run = writeRuns[test.id];
+                  if (!run) return null;
+                  return (
+                    <div key={test.id} className={cn('flex items-center gap-2.5 rounded-md border border-border px-3 py-2 text-body-sm', run.status === 'fail' && 'bg-state-technical/5')}>
+                      <StatusIcon status={run.status} />
+                      <span className="min-w-0 flex-1 truncate font-mono text-caption">{test.label}</span>
+                      <span className={cn('truncate text-caption', run.status === 'fail' ? 'text-state-technical' : 'text-muted-foreground')}>
+                        {run.detail}
+                      </span>
+                      {run.ms !== undefined && <span className="shrink-0 font-mono text-caption text-muted-foreground">{run.ms}ms</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <p className="rounded-lg border border-dashed border-border p-2.5 text-caption text-muted-foreground">
+            {t('diag.writeNote', { n: 112 })}
+          </p>
+        </div>
       </div>
     </div>
   );

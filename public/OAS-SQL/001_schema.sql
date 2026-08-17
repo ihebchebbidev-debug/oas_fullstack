@@ -116,6 +116,7 @@ create table if not exists public.oas_sites (
   timezone    text not null default 'Africa/Tunis',
   address     text,
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, code)
@@ -129,6 +130,7 @@ create table if not exists public.oas_zones (
   name        text not null,
   sort_order  int not null default 0,
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, code)
@@ -143,6 +145,7 @@ create table if not exists public.oas_lines (
   sort_order  int not null default 0,
   target_oee  numeric(5,2),
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, code)
@@ -161,6 +164,7 @@ create table if not exists public.oas_posts (
   is_critical   boolean not null default false,
   is_active     boolean not null default true,
   archived_at   timestamptz,
+  is_deleted    boolean not null default false,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   unique (tenant_id, code)
@@ -177,6 +181,7 @@ create table if not exists public.oas_equipments (
   commissioned_at date,
   criticality     public.oas_criticality not null default 'medium',
   archived_at     timestamptz,
+  is_deleted      boolean not null default false,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   unique (tenant_id, code)
@@ -190,6 +195,7 @@ create table if not exists public.oas_products (
   customer    text,
   unit        text not null default 'pcs',
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, reference)

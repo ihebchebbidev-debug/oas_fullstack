@@ -127,6 +127,7 @@ create table if not exists public.oas_sites (
   timezone    text not null default 'Africa/Tunis',
   address     text,
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, code)
@@ -140,6 +141,7 @@ create table if not exists public.oas_zones (
   name        text not null,
   sort_order  int not null default 0,
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, code)
@@ -154,6 +156,7 @@ create table if not exists public.oas_lines (
   sort_order  int not null default 0,
   target_oee  numeric(5,2),
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, code)
@@ -172,6 +175,7 @@ create table if not exists public.oas_posts (
   is_critical   boolean not null default false,
   is_active     boolean not null default true,
   archived_at   timestamptz,
+  is_deleted    boolean not null default false,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   unique (tenant_id, code)
@@ -227,6 +231,7 @@ create table if not exists public.oas_equipments (
   commissioned_at date,
   criticality     public.oas_criticality not null default 'medium',
   archived_at     timestamptz,
+  is_deleted      boolean not null default false,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   unique (tenant_id, code)
@@ -240,10 +245,28 @@ create table if not exists public.oas_products (
   customer    text,
   unit        text not null default 'pcs',
   archived_at timestamptz,
+  is_deleted  boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (tenant_id, reference)
 );
+
+-- Self-heal for databases already provisioned before `is_deleted` was added
+-- to these 6 tables above: `create table if not exists` is a no-op against
+-- an existing table, so it alone would never retroactively add a missing
+-- column. OasDbContext (Backend/Modules/OAS/Common/OasDbContext.cs) applies
+-- a global `WHERE is_deleted = false` filter to every query against
+-- OasSite/OasZone/OasLine/OasPost/OasEquipment/OasProduct (they all
+-- implement IOasSoftDeletable) — without this column present, literally
+-- every read against these 6 tables fails with "column is_deleted does not
+-- exist". Re-running this file against an already-provisioned database now
+-- repairs that, matching the "safe to re-run" promise at the top of this file.
+alter table public.oas_sites      add column if not exists is_deleted boolean not null default false;
+alter table public.oas_zones      add column if not exists is_deleted boolean not null default false;
+alter table public.oas_lines      add column if not exists is_deleted boolean not null default false;
+alter table public.oas_posts      add column if not exists is_deleted boolean not null default false;
+alter table public.oas_equipments add column if not exists is_deleted boolean not null default false;
+alter table public.oas_products   add column if not exists is_deleted boolean not null default false;
 
 -- Current/base cadence per (product, post). Versioned history lives in
 -- oas_routing_versions (§5.2 #2) — this row always reflects the latest.
