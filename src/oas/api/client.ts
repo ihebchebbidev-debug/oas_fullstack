@@ -139,8 +139,17 @@ async function extractErrorMessage(res: Response): Promise<{ message: string; bo
   } catch {
     /* no JSON body */
   }
-  const b = body as { title?: string; message?: string; error?: string; detail?: string } | null;
-  const message = b?.title ?? b?.message ?? b?.error ?? b?.detail ?? `HTTP ${res.status}`;
+  const b = body as { title?: string; message?: string; error?: string; detail?: string; errors?: Record<string, string[]> } | null;
+  const base = b?.title ?? b?.message ?? b?.error ?? b?.detail ?? `HTTP ${res.status}`;
+  // ASP.NET Core's automatic [ApiController] model-validation failure returns a
+  // ValidationProblemDetails with a generic title ("One or more validation errors
+  // occurred.") and the REAL per-field reason buried in `errors` — silently dropping
+  // that here is exactly what hid a real backend bug (TimeOnly binding rejecting
+  // "HH:mm") behind an unhelpful message for an entire session. Always surface it.
+  const fieldErrors = b?.errors && typeof b.errors === 'object'
+    ? Object.entries(b.errors).map(([field, msgs]) => `${field}: ${msgs.join(', ')}`).join(' | ')
+    : null;
+  const message = fieldErrors ? `${base} (${fieldErrors})` : base;
   return { message, body };
 }
 

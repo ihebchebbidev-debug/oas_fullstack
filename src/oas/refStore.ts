@@ -604,13 +604,29 @@ export function shiftOpenMin(s: ShiftRow): number {
   return Math.max(0, shiftSpanMin(s) - Math.max(0, s.breakMinutes || 0));
 }
 
+/**
+ * `<input type="time">` gives back "HH:mm" — but the backend's `TimeOnly`
+ * fields are bound by System.Text.Json's built-in converter, which only
+ * accepts the round-trip format ("HH:mm:ss") and throws a hard
+ * `JsonException` (surfaced as a 400) on anything shorter. Confirmed by
+ * direct reproduction: `{"startTime":"06:00"}` fails to deserialize,
+ * `{"startTime":"06:00:00"}` succeeds.
+ */
+function toTimeOnlyString(v: string): string {
+  return v.length === 5 ? `${v}:00` : v;
+}
+
 export async function upsertShift(row: ShiftRow) {
   const code = row.code.trim().toLowerCase();
   if (!code || !row.name.trim()) return;
   try {
     const siteId = row.siteId || (await hierarchyApi.listSites())[0]?.id;
     if (!siteId) return;
-    const body = { siteId, code, name: row.name.trim(), startTime: row.start, endTime: row.end, breakMinutes: Math.max(0, Math.round(row.breakMinutes || 0)) };
+    const body = {
+      siteId, code, name: row.name.trim(),
+      startTime: toTimeOnlyString(row.start), endTime: toTimeOnlyString(row.end),
+      breakMinutes: Math.max(0, Math.round(row.breakMinutes || 0)),
+    };
     if (row.id) await shiftsApi.update(row.id, body);
     else await shiftsApi.create(body);
     await reloadAll();

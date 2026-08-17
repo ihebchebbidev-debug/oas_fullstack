@@ -823,7 +823,10 @@ async function provisionFixture(): Promise<Fixture> {
     if (shifts.length === 0) {
       const siteId = fixture.siteId ?? (await hierarchyApi.listSites())[0]?.id;
       if (siteId) {
-        const shift = await shiftsApi.create({ siteId, code: `${tag}-SHIFT`, name: tag, startTime: '06:00', endTime: '14:00' });
+        // Backend TimeOnly binding (System.Text.Json) requires seconds — "06:00" alone
+        // throws a JsonException (400). Confirmed by direct reproduction; see refStore.ts's
+        // toTimeOnlyString for the same fix on the real admin Shift Calendars screen.
+        const shift = await shiftsApi.create({ siteId, code: `${tag}-SHIFT`, name: tag, startTime: '06:00:00', endTime: '14:00:00' });
         fixture.shiftId = shift.id;
       } else {
         fixture.errors.push('shift: no site available to attach a test shift template to');
