@@ -357,6 +357,7 @@ export const en: Dict = {
   'diag.filterEmpty': 'Nothing matches this filter.',
   'diag.signInFirst': 'Sign in to run the tests — the session is then reused for every call.',
   'diag.fixtureNote': 'This tenant had no test data yet, so this run auto-provisioned a temporary {items} (tagged DIAGTEST-) so the dependent tests below could run for real — removed again once the run finished.',
+  'diag.fixtureError': 'Auto-provisioning the test fixture hit a real error (not swallowed — surfaced here instead): {error}',
   'diag.writeNote': 'All {n} read endpoints on the backend are exercised live above, alongside full create/update/delete round trips on every domain with a real, verified cleanup path (rows tagged DIAGTEST-, each removed and confirmed gone in the same run). Declarations and events are explicitly exempted from cleanup — this tenant opted in to creating real, PERMANENT rows there on every run (append-only trigger; no removal endpoint exists at all) so their full write surface could be exercised too. A handful of endpoints (operators, andon, presence, sign-offs, imports, interventions, teams, post-sessions, changeovers, quality checks, sync, webhooks) also have no delete path and now leave small permanent rows by the same accepted tradeoff.',
   'diag.module.connectivity': 'Connectivity',
   'diag.module.hierarchy': 'Hierarchy',

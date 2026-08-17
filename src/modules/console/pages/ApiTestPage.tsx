@@ -164,7 +164,9 @@ const TESTS: DiagTest[] = [
   { id: 'equipments', module: 'diag.module.equipment', label: 'GET /equipments', run: () => ok(() => equipmentsApi.list(), undefined, isArray) },
   { id: 'write.equipments', module: 'diag.module.equipment', label: 'POST /equipments → PUT → DELETE → GET', run: () => runEquipmentsWriteTest() },
   { id: 'cadences', module: 'diag.module.cadences', label: 'GET /cadences', run: captureList(() => cadencesApi.list(), (ctx, rows) => { ctx.cadenceId = rows[0]?.id; }) },
-  { id: 'cadences.history', module: 'diag.module.cadences', label: 'GET /cadences/{id}/history', run: (ctx) => ctx.cadenceId ? ok(() => cadencesApi.history(ctx.cadenceId!), undefined, isArray) : Promise.resolve(skip('no cadence to test against')) },
+  // No standalone GET /cadences/{id}/history row: on a tenant with no real cadences yet, a
+  // cadence only ever exists for the brief window inside the write-path test below, which
+  // exercises this endpoint directly against it — a dedicated row here would always just skip.
   {
     id: 'cadences.current', module: 'diag.module.cadences', label: 'GET /cadences/current',
     // A random productId is guaranteed not to exist for this post — 404
@@ -224,14 +226,18 @@ const TESTS: DiagTest[] = [
   { id: 'write.postSessions', module: 'diag.module.sessions', label: 'POST /post-sessions/open → close', run: (ctx) => runPostSessionLifecycleTest(ctx) },
 
   // ---- Declarations / events / changeovers / post states -------------------
+  // Write tests run BEFORE their {id}-dependent GET siblings deliberately: on a
+  // tenant with no real declarations/events yet, the write test is what gives
+  // `ctx.declarationId`/`ctx.eventId` a real, permanent row to look up — reversed
+  // order would always skip here (declarations/events are never deleted).
   { id: 'declarations', module: 'diag.module.declarations', label: 'GET /declarations', run: captureList(() => declarationsApi.list(), (ctx, rows) => { ctx.declarationId = rows[0]?.id; }) },
-  { id: 'declarations.byId', module: 'diag.module.declarations', label: 'GET /declarations/{id}', run: (ctx) => ctx.declarationId ? ok(() => apiFetch(`/declarations/${ctx.declarationId}`), undefined, hasKeys('id', 'kind', 'postId', 'quantityOk', 'quantityNok')) : Promise.resolve(skip('no declaration to test against')) },
   { id: 'write.declarations', module: 'diag.module.declarations', label: 'POST /declarations/production + /scrap', run: (ctx) => runDeclarationsWriteTest(ctx) },
+  { id: 'declarations.byId', module: 'diag.module.declarations', label: 'GET /declarations/{id}', run: (ctx) => ctx.declarationId ? ok(() => apiFetch(`/declarations/${ctx.declarationId}`), undefined, hasKeys('id', 'kind', 'postId', 'quantityOk', 'quantityNok')) : Promise.resolve(skip('no declaration to test against')) },
   { id: 'events', module: 'diag.module.events', label: 'GET /events', run: captureList(() => eventsApi.list(), (ctx, rows) => { ctx.eventId = rows[0]?.id; }) },
-  { id: 'events.byId', module: 'diag.module.events', label: 'GET /events/{id}', run: (ctx) => ctx.eventId ? ok(() => eventsApi.getOne(ctx.eventId!), undefined, hasKeys('id', 'eventType', 'status', 'postId')) : Promise.resolve(skip('no event to test against')) },
-  { id: 'events.transitions', module: 'diag.module.events', label: 'GET /events/{id}/transitions', run: (ctx) => ctx.eventId ? ok(() => eventsApi.transitions(ctx.eventId!), undefined, isArray) : Promise.resolve(skip('no event to test against')) },
   { id: 'write.events.lifecycle', module: 'diag.module.events', label: 'POST /events → take → eta → arrive → ack → escalate → advance → close', run: (ctx) => runEventLifecycleTest(ctx) },
   { id: 'write.events.requalifyDecline', module: 'diag.module.events', label: 'POST /events → requalify → decline → close', run: (ctx) => runEventRequalifyDeclineTest(ctx) },
+  { id: 'events.byId', module: 'diag.module.events', label: 'GET /events/{id}', run: (ctx) => ctx.eventId ? ok(() => eventsApi.getOne(ctx.eventId!), undefined, hasKeys('id', 'eventType', 'status', 'postId')) : Promise.resolve(skip('no event to test against')) },
+  { id: 'events.transitions', module: 'diag.module.events', label: 'GET /events/{id}/transitions', run: (ctx) => ctx.eventId ? ok(() => eventsApi.transitions(ctx.eventId!), undefined, isArray) : Promise.resolve(skip('no event to test against')) },
   { id: 'changeovers', module: 'diag.module.changeovers', label: 'GET /changeovers', run: () => ok(() => changeoversApi.list(), undefined, isArray) },
   { id: 'write.changeovers', module: 'diag.module.changeovers', label: 'POST /changeovers → PUT finish', run: (ctx) => runChangeoverLifecycleTest(ctx) },
   { id: 'postStates', module: 'diag.module.postStates', label: 'GET /post-states', run: () => ok(() => postStatesApi.live(), undefined, isArray) },
@@ -286,11 +292,11 @@ const TESTS: DiagTest[] = [
   { id: 'teams', module: 'diag.module.backendOnly', label: 'GET /teams', run: () => ok(() => apiFetch('/teams'), undefined, isArray) },
   { id: 'write.teams', module: 'diag.module.backendOnly', label: 'POST /teams → PUT /teams/{id}/members', run: (ctx) => runTeamsWriteTest(ctx) },
   // Unlike every other list endpoint here, GET /attachments has no "list all" mode —
-  // OasAttachmentsController.GetAll requires `entity`+`id` (attachments always belong
-  // to one specific record), so a bare call is guaranteed a 400 by ASP.NET Core's own
-  // model-binding validation. Nothing in this diagnostic run creates a safe target to
-  // point it at, so this honestly skips rather than reporting a fake failure.
-  { id: 'attachments', module: 'diag.module.backendOnly', label: 'GET /attachments', run: () => Promise.resolve(skip('requires entity+id — no target to test against')) },
+  // OasAttachmentsController.GetAll requires `entity`+`id` (attachments always belong to
+  // one specific record). `GetAttachmentsAsync` does a plain `Where(EntityTable == ... &&
+  // EntityId == ...)` with no validation on the entity name, so any real GUID is a valid,
+  // safe query — it just legitimately returns an empty list when nothing's attached to it.
+  { id: 'attachments', module: 'diag.module.backendOnly', label: 'GET /attachments', run: (ctx) => ok(() => apiFetch(`/attachments?entity=posts&id=${ctx.postId ?? crypto.randomUUID()}`), undefined, isArray) },
   { id: 'integrations.endpoints', module: 'diag.module.backendOnly', label: 'GET /integrations/endpoints', run: () => ok(() => apiFetch('/integrations/endpoints'), undefined, isArray) },
   { id: 'write.integrationEndpoints', module: 'diag.module.backendOnly', label: 'POST /integrations/endpoints → PUT → DELETE → GET', run: () => runIntegrationEndpointsWriteTest() },
   { id: 'write.webhookIn', module: 'diag.module.backendOnly', label: 'POST /integrations/webhooks/in', run: () => runWebhookInTest() },
@@ -299,15 +305,10 @@ const TESTS: DiagTest[] = [
   // `since` is required (no default) — 1970-01-01 pulls everything, which is a valid, safe read (no side effects, this endpoint only reads).
   { id: 'sync.pull', module: 'diag.module.backendOnly', label: 'GET /sync/pull', run: () => ok(() => apiFetch('/sync/pull?since=1970-01-01T00:00:00Z&limit=1'), () => 'OK') },
   { id: 'write.syncPush', module: 'diag.module.backendOnly', label: 'POST /sync/push', run: () => runSyncPushTest() },
-  {
-    id: 'quality.templates', module: 'diag.module.backendOnly', label: 'GET /quality-check-templates',
-    run: captureList(() => apiFetch<{ id: string }[]>('/quality-check-templates'), (ctx, rows) => { ctx.qualityTemplateId = rows[0]?.id; }),
-  },
-  {
-    id: 'quality.templates.items', module: 'diag.module.backendOnly', label: 'GET /quality-check-templates/{id}/items',
-    run: (ctx) => ctx.qualityTemplateId ? ok(() => apiFetch(`/quality-check-templates/${ctx.qualityTemplateId}/items`), undefined, isArray) : Promise.resolve(skip('no quality template to test against')),
-  },
-  { id: 'write.qualityTemplates', module: 'diag.module.backendOnly', label: 'POST /quality-check-templates → PUT → PUT items → DELETE → GET', run: () => runQualityTemplatesWriteTest() },
+  { id: 'quality.templates', module: 'diag.module.backendOnly', label: 'GET /quality-check-templates', run: () => ok(() => apiFetch('/quality-check-templates'), undefined, isArray) },
+  // No standalone GET .../{id}/items row, same reasoning as cadences/history above — the
+  // write-path test below exercises it directly against its own temporary template.
+  { id: 'write.qualityTemplates', module: 'diag.module.backendOnly', label: 'POST /quality-check-templates → PUT → PUT items → GET items → DELETE → GET', run: () => runQualityTemplatesWriteTest() },
   { id: 'quality.checks', module: 'diag.module.backendOnly', label: 'GET /quality-checks', run: () => ok(() => apiFetch('/quality-checks'), undefined, isArray) },
   { id: 'write.qualityChecks', module: 'diag.module.backendOnly', label: 'POST /quality-checks', run: (ctx) => runQualityCheckCreateTest(ctx) },
 ];
@@ -375,12 +376,16 @@ async function runCadencesWriteTest(): Promise<TestOutcome> {
       throw new Error(`POST /cadences reported success but the new row (${tag}) is missing from GET /cadences right after`);
     }
     await cadencesApi.update(created.id, { productId: product.id, postId: post.id, rate: 55 });
+    // GET /cadences/{id}/history can only ever be exercised against a real cadence —
+    // on an empty tenant, this brief window (before delete, below) is the only one that
+    // ever exists, so it's tested here rather than as a standalone row doomed to skip.
+    const history = await cadencesApi.history(created.id);
     await cadencesApi.remove(created.id);
     const afterDelete = await cadencesApi.list();
     if (afterDelete.some((c) => c.id === created.id)) {
       throw new Error(`DELETE /cadences/{id} did not remove ${tag} — check Referentials → Cadences and delete it by hand`);
     }
-    return { ok: true, detail: `POST product → POST cadence → PUT → GET (found) → DELETE → GET (gone), tag ${tag}`, json: created };
+    return { ok: true, detail: `POST product → POST cadence → PUT → GET /history (${history.length}) → GET (found) → DELETE → GET (gone), tag ${tag}`, json: created };
   } finally {
     // Products has no hard delete — soft-deleted and gone from every real
     // screen via the global query filter, same tier of risk as the fixture
@@ -480,12 +485,14 @@ async function runQualityTemplatesWriteTest(): Promise<TestOutcome> {
   }
   await apiFetch(`/quality-check-templates/${created.id}`, { method: 'PUT', body: { code: tag, name: `${tag}-updated`, checkType: 'in_process' } });
   await apiFetch(`/quality-check-templates/${created.id}/items`, { method: 'PUT', body: [{ label: 'Visual check', valueType: 'boolean', isRequired: true, sortOrder: 0 }] });
+  // GET .../items, same reasoning as cadences/history above — only ever real inside this window.
+  const items = await apiFetch<unknown[]>(`/quality-check-templates/${created.id}/items`);
   await apiFetch(`/quality-check-templates/${created.id}`, { method: 'DELETE' });
   const afterDelete = await apiFetch<{ id: string }[]>('/quality-check-templates');
   if (afterDelete.some((tpl) => tpl.id === created.id)) {
     throw new Error(`DELETE /quality-check-templates/{id} did not remove ${tag} — check and delete it by hand`);
   }
-  return { ok: true, detail: `POST → PUT → PUT items → GET (found) → DELETE → GET (gone), tag ${tag}`, json: created };
+  return { ok: true, detail: `POST → PUT → PUT items → GET items (${items.length}) → GET (found) → DELETE → GET (gone), tag ${tag}`, json: created };
 }
 
 async function runIntegrationEndpointsWriteTest(): Promise<TestOutcome> {
@@ -537,10 +544,11 @@ async function runDeclarationsWriteTest(ctx: DiagCtx): Promise<TestOutcome> {
   if (!ctx.postId) return skip('no post to test against');
   const tag = diagTag();
   const now = new Date().toISOString();
-  const production = await apiFetch('/declarations/production', {
+  const production = await apiFetch<{ id: string }>('/declarations/production', {
     method: 'POST',
     body: { clientEventId: crypto.randomUUID(), postId: ctx.postId, quantityOk: 1, quantityNok: 0, note: tag, occurredAt: now },
   });
+  ctx.declarationId = production.id;
   const scrap = await apiFetch('/declarations/scrap', {
     method: 'POST',
     body: { clientEventId: crypto.randomUUID(), postId: ctx.postId, quantityNok: 1, note: tag, occurredAt: now },
@@ -776,32 +784,53 @@ interface Fixture {
   zoneId?: string;
   lineId?: string;
   postId?: string;
+  postCode?: string;
   shiftId?: string;
+  /** Any step that failed, by name — surfaced in the UI instead of silently swallowed, so a broken fixture is a visible bug, not an unexplained wall of "skip". */
+  errors: string[];
 }
 
+/**
+ * The hierarchy chain and the shift template are two INDEPENDENT concerns,
+ * each in its own try/catch — a failure in one must never discard progress
+ * already made in (or hide the real error from) the other, unlike the
+ * previous single-try version where any exception anywhere lost the whole
+ * `fixture` object silently.
+ */
 async function provisionFixture(): Promise<Fixture> {
-  const fixture: Fixture = {};
+  const fixture: Fixture = { errors: [] };
   const tag = `DIAGTEST-${Date.now()}`;
 
-  const posts = await hierarchyApi.listPosts();
-  if (posts.length === 0) {
-    const site = await hierarchyApi.createSite({ code: `${tag}-SITE`, name: tag });
-    fixture.siteId = site.id;
-    const zone = await hierarchyApi.createZone({ siteId: site.id, code: `${tag}-ZONE`, name: tag });
-    fixture.zoneId = zone.id;
-    const line = await hierarchyApi.createLine({ zoneId: zone.id, code: `${tag}-LINE`, name: tag });
-    fixture.lineId = line.id;
-    const post = await hierarchyApi.createPost({ lineId: line.id, code: `${tag}-POST`, name: tag });
-    fixture.postId = post.id;
+  try {
+    const posts = await hierarchyApi.listPosts();
+    if (posts.length === 0) {
+      const site = await hierarchyApi.createSite({ code: `${tag}-SITE`, name: tag });
+      fixture.siteId = site.id;
+      const zone = await hierarchyApi.createZone({ siteId: site.id, code: `${tag}-ZONE`, name: tag });
+      fixture.zoneId = zone.id;
+      const line = await hierarchyApi.createLine({ zoneId: zone.id, code: `${tag}-LINE`, name: tag });
+      fixture.lineId = line.id;
+      const post = await hierarchyApi.createPost({ lineId: line.id, code: `${tag}-POST`, name: tag });
+      fixture.postId = post.id;
+      fixture.postCode = post.code;
+    }
+  } catch (e) {
+    fixture.errors.push(`hierarchy: ${e instanceof ApiError ? `${e.status} ${e.message}` : e instanceof Error ? e.message : 'unknown error'}`);
   }
 
-  const shifts = await shiftsApi.list();
-  if (shifts.length === 0) {
-    const siteId = fixture.siteId ?? (await hierarchyApi.listSites())[0]?.id;
-    if (siteId) {
-      const shift = await shiftsApi.create({ siteId, code: `${tag}-SHIFT`, name: tag, startTime: '06:00', endTime: '14:00' });
-      fixture.shiftId = shift.id;
+  try {
+    const shifts = await shiftsApi.list();
+    if (shifts.length === 0) {
+      const siteId = fixture.siteId ?? (await hierarchyApi.listSites())[0]?.id;
+      if (siteId) {
+        const shift = await shiftsApi.create({ siteId, code: `${tag}-SHIFT`, name: tag, startTime: '06:00', endTime: '14:00' });
+        fixture.shiftId = shift.id;
+      } else {
+        fixture.errors.push('shift: no site available to attach a test shift template to');
+      }
     }
+  } catch (e) {
+    fixture.errors.push(`shift: ${e instanceof ApiError ? `${e.status} ${e.message}` : e instanceof Error ? e.message : 'unknown error'}`);
   }
 
   return fixture;
@@ -901,6 +930,7 @@ export default function ApiTestPage() {
   const [running, setRunning] = useState(false);
   const [ranAt, setRanAt] = useState<string | null>(null);
   const [fixtureNote, setFixtureNote] = useState<string | null>(null);
+  const [fixtureError, setFixtureError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | 'all'>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const startedOnce = useRef(false);
@@ -908,6 +938,7 @@ export default function ApiTestPage() {
   const runAll = async () => {
     setRunning(true);
     setFixtureNote(null);
+    setFixtureError(null);
     const initial: Record<string, RunState> = {};
     TESTS.forEach((test) => { initial[test.id] = { status: 'pending' as Status }; });
     setRuns(initial);
@@ -915,17 +946,19 @@ export default function ApiTestPage() {
     // Auto-provision the minimal hierarchy/shift data the tenant is missing,
     // so dependent tests exercise the real thing instead of skipping —
     // never declarations or events (see provisionFixture's doc comment).
-    let fixture: Fixture = {};
-    try {
-      fixture = await provisionFixture();
-    } catch {
-      // best-effort — dependent tests will honestly report "skip" if prerequisites are still missing
-    }
+    const fixture = await provisionFixture();
     const provisioned: string[] = [];
     if (fixture.postId) provisioned.push('site → zone → line → post');
     if (fixture.shiftId) provisioned.push('shift template');
 
     const ctx: DiagCtx = { today: new Date().toISOString().slice(0, 10) };
+    // Wire the fixture straight into ctx immediately — don't rely solely on
+    // the `sites`/`posts`/`shifts` GET tests re-discovering it via list(),
+    // so a dependent test never skips just because list-capture happened to
+    // run in an order or moment that missed it.
+    if (fixture.siteId) ctx.siteId = fixture.siteId;
+    if (fixture.postId) { ctx.postId = fixture.postId; ctx.postCode = fixture.postCode; }
+    if (fixture.shiftId) ctx.shiftId = fixture.shiftId;
 
     for (const test of TESTS) {
       setRuns((prev) => ({ ...prev, [test.id]: { status: 'running' } }));
@@ -945,6 +978,7 @@ export default function ApiTestPage() {
       await cleanupFixture(fixture);
       setFixtureNote(t('diag.fixtureNote', { items: provisioned.join(', ') }));
     }
+    setFixtureError(fixture.errors.length > 0 ? fixture.errors.join(' · ') : null);
 
     setRunning(false);
     setRanAt(new Date().toLocaleTimeString());
@@ -1079,6 +1113,12 @@ export default function ApiTestPage() {
 
         {fixtureNote && !running && (
           <p className="mx-auto max-w-3xl rounded-lg border border-dashed border-border p-2.5 text-caption text-muted-foreground">{fixtureNote}</p>
+        )}
+
+        {fixtureError && !running && (
+          <p className="mx-auto max-w-3xl rounded-lg border border-state-technical/40 bg-state-technical/5 p-2.5 text-caption text-state-technical">
+            {t('diag.fixtureError', { error: fixtureError })}
+          </p>
         )}
       </header>
 

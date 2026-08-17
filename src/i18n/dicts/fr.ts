@@ -383,6 +383,7 @@ export const fr: Dict = {
   'diag.filterEmpty': 'Aucun résultat pour ce filtre.',
   'diag.signInFirst': 'Connectez-vous pour lancer les tests — la session sert ensuite à chaque appel.',
   'diag.fixtureNote': 'Ce tenant n’avait pas encore de données de test — cette exécution a donc créé temporairement {items} (étiqueté DIAGTEST-) pour que les tests dépendants ci-dessous s’exécutent réellement, puis l’a supprimé à la fin.',
+  'diag.fixtureError': 'La création automatique du jeu de test a rencontré une vraie erreur (non masquée — affichée ici) : {error}',
   'diag.writeNote': 'Les {n} endpoints de lecture du backend sont tous exécutés réellement ci-dessus, avec en plus un cycle complet créer/modifier/supprimer sur chaque domaine où un vrai moyen de nettoyage est confirmé (lignes étiquetées DIAGTEST-, chacune supprimée et vérifiée absente dans la même exécution). Déclarations et événements sont explicitement exemptés du nettoyage — ce tenant a choisi de créer des lignes réelles et PERMANENTES à chaque exécution (trigger append-only ; aucun endpoint de suppression n’existe) afin que leur surface d’écriture complète soit aussi testée. Une poignée d’endpoints (opérateurs, andon, présence, signatures, imports, interventions, équipes, sessions de poste, changements de série, contrôles qualité, sync, webhooks) n’ont eux non plus aucun moyen de suppression et laissent désormais de petites lignes permanentes, selon le même compromis accepté.',
   'diag.module.connectivity': 'Connectivité',
   'diag.module.hierarchy': 'Hiérarchie',
