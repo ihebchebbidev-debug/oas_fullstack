@@ -360,7 +360,7 @@ export const en: Dict = {
   'diag.writePath.desc': 'Each one creates a temporary record, confirms it exists, deletes it, confirms it\'s gone — only domains with a verified real deletion path server-side.',
   'diag.writePath.run': 'Run write-path tests',
   'diag.fixtureNote': 'This tenant had no test data yet, so this run auto-provisioned a temporary {items} (tagged DIAGTEST-) so the dependent tests below could run for real — removed again once the run finished.',
-  'diag.writeNote': '{n} write (POST/PUT/DELETE) routes exist on the backend — verified via code review this session (0 orphaned frontend calls), never auto-fired here beyond the temporary fixture above and the opt-in tests below: this is a real database and several tables (declarations, events) are append-only by design.',
+  'diag.writeNote': 'All {n} read endpoints on the backend are exercised live above. Of its 112 write (POST/PUT/DELETE) routes, 8 domains (16 routes) get a real create→verify→delete→verify-gone round trip below, plus the hierarchy/shift fixture when the tenant is empty. The rest are never auto-fired, each for a verified reason: declarations and events are protected by design (append-only trigger; no removal path at all); operators, andon messages, presence, shift sign-offs, imports, interventions, teams and plugin toggles were checked in source this session and have no safe cleanup path; the remainder represent real shop-floor/operational state (post-sessions, changeovers, quality checks, sync, webhooks) that shouldn\'t be fabricated even temporarily.',
   'diag.module.connectivity': 'Connectivity',
   'diag.module.hierarchy': 'Hierarchy',
   'diag.module.operators': 'Operators',

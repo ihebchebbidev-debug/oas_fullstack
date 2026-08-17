@@ -39,6 +39,7 @@ interface DiagCtx {
   eventId?: string;
   importId?: string;
   shiftId?: string;
+  qualityTemplateId?: string;
   today: string;
 }
 
@@ -98,7 +99,27 @@ function captureList<T>(fetch: () => Promise<T[]>, assign: (ctx: DiagCtx, rows: 
 
 const TESTS: DiagTest[] = [
   // ---- Connectivity ----------------------------------------------------
+  {
+    id: 'health', module: 'diag.module.connectivity', label: 'GET /health',
+    // 503 (schema incomplete / tenant not provisioned) is real signal, already
+    // surfaced prominently by the DbStatusBanner above — this test's job is
+    // just confirming the endpoint itself answers, not re-litigating schema state.
+    run: async () => {
+      try {
+        const dto = await apiFetch<{ status: string; tenant?: string }>('/health', { auth: false });
+        return { ok: true, detail: `${dto.status}${dto.tenant ? ` — ${dto.tenant}` : ''}` };
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 503) return { ok: true, detail: 'schema incomplete or not provisioned (see banner above)' };
+        throw e;
+      }
+    },
+  },
   { id: 'auth.me', module: 'diag.module.connectivity', label: 'GET /auth/me', run: () => ok(() => apiFetch('/auth/me'), (v) => `signed in as ${(v as { email?: string })?.email ?? '—'}`, hasKeys('id', 'email', 'role', 'workspace')) },
+  // Long-lived SSE connection (EventSource), not a request/response call — apiFetch can't
+  // exercise it the same way. `connectOasStream()` (src/oas/api/events.ts) is the one real
+  // caller and is used live by every screen showing real-time updates, so this is a
+  // documented exclusion, not an untested gap.
+  { id: 'stream', module: 'diag.module.connectivity', label: 'GET /stream (SSE)', run: () => Promise.resolve(skip('long-lived EventSource connection — exercised live by connectOasStream(), not a fetch-style call')) },
 
   // ---- Hierarchy ---------------------------------------------------------
   { id: 'sites', module: 'diag.module.hierarchy', label: 'GET /sites', run: () => ok(() => hierarchyApi.listSites(), undefined, isArray) },
@@ -122,6 +143,22 @@ const TESTS: DiagTest[] = [
   { id: 'equipments', module: 'diag.module.equipment', label: 'GET /equipments', run: () => ok(() => equipmentsApi.list(), undefined, isArray) },
   { id: 'cadences', module: 'diag.module.cadences', label: 'GET /cadences', run: captureList(() => cadencesApi.list(), (ctx, rows) => { ctx.cadenceId = rows[0]?.id; }) },
   { id: 'cadences.history', module: 'diag.module.cadences', label: 'GET /cadences/{id}/history', run: (ctx) => ctx.cadenceId ? ok(() => cadencesApi.history(ctx.cadenceId!), undefined, isArray) : Promise.resolve(skip('no cadence to test against')) },
+  {
+    id: 'cadences.current', module: 'diag.module.cadences', label: 'GET /cadences/current',
+    // A random productId is guaranteed not to exist for this post — 404
+    // ("no current cadence for this pairing") is the real, valid response
+    // shape, same treatment as posts sessions/active below.
+    run: async (ctx) => {
+      if (!ctx.postId) return skip('no post to test against');
+      try {
+        await apiFetch(`/cadences/current?postId=${ctx.postId}&productId=${crypto.randomUUID()}`);
+        return { ok: true, detail: 'current cadence found' };
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return { ok: true, detail: 'no current cadence for this pairing (normal)' };
+        throw e;
+      }
+    },
+  },
   { id: 'products', module: 'diag.module.products', label: 'GET /products', run: () => ok(() => productsApi.list(), undefined, isArray) },
   { id: 'productionOrders', module: 'diag.module.products', label: 'GET /production-orders', run: () => ok(() => productionOrdersApi.list(), undefined, isArray) },
 
@@ -204,7 +241,16 @@ const TESTS: DiagTest[] = [
   { id: 'integrations.endpoints', module: 'diag.module.backendOnly', label: 'GET /integrations/endpoints', run: () => ok(() => apiFetch('/integrations/endpoints'), undefined, isArray) },
   { id: 'integrations.outbox', module: 'diag.module.backendOnly', label: 'GET /integrations/outbox', run: () => ok(() => apiFetch('/integrations/outbox'), undefined, isArray) },
   { id: 'sync.receipts', module: 'diag.module.backendOnly', label: 'GET /sync/receipts', run: () => ok(() => apiFetch('/sync/receipts'), undefined, isArray) },
-  { id: 'quality.templates', module: 'diag.module.backendOnly', label: 'GET /quality-check-templates', run: () => ok(() => apiFetch('/quality-check-templates'), undefined, isArray) },
+  // `since` is required (no default) — 1970-01-01 pulls everything, which is a valid, safe read (no side effects, this endpoint only reads).
+  { id: 'sync.pull', module: 'diag.module.backendOnly', label: 'GET /sync/pull', run: () => ok(() => apiFetch('/sync/pull?since=1970-01-01T00:00:00Z&limit=1'), () => 'OK') },
+  {
+    id: 'quality.templates', module: 'diag.module.backendOnly', label: 'GET /quality-check-templates',
+    run: captureList(() => apiFetch<{ id: string }[]>('/quality-check-templates'), (ctx, rows) => { ctx.qualityTemplateId = rows[0]?.id; }),
+  },
+  {
+    id: 'quality.templates.items', module: 'diag.module.backendOnly', label: 'GET /quality-check-templates/{id}/items',
+    run: (ctx) => ctx.qualityTemplateId ? ok(() => apiFetch(`/quality-check-templates/${ctx.qualityTemplateId}/items`), undefined, isArray) : Promise.resolve(skip('no quality template to test against')),
+  },
   { id: 'quality.checks', module: 'diag.module.backendOnly', label: 'GET /quality-checks', run: () => ok(() => apiFetch('/quality-checks'), undefined, isArray) },
 ];
 
@@ -286,10 +332,114 @@ async function runCadencesWriteTest(): Promise<TestOutcome> {
   }
 }
 
+async function runEquipmentsWriteTest(): Promise<TestOutcome> {
+  const tag = `DIAGTEST-${Date.now()}`;
+  const created = await equipmentsApi.create({ code: tag, name: tag });
+  const afterCreate = await equipmentsApi.list();
+  if (!afterCreate.some((e) => e.id === created.id)) {
+    throw new Error(`POST /equipments reported success but ${tag} is missing from GET /equipments right after`);
+  }
+  await equipmentsApi.remove(created.id);
+  const afterDelete = await equipmentsApi.list();
+  if (afterDelete.some((e) => e.id === created.id)) {
+    throw new Error(`DELETE /equipments/{id} did not remove ${tag} — check Referentials → Équipements and delete it by hand`);
+  }
+  return { ok: true, detail: `POST → GET (found) → DELETE → GET (gone), tag ${tag}` };
+}
+
+/**
+ * Needs a real post + shift template + operator to attach to (assignments
+ * are a join, not a standalone record) — skips honestly if the tenant has
+ * none rather than fabricating any of those three. `workDate` is pinned to
+ * a far-future date so the row can never appear on anyone's real "today"
+ * schedule even for the brief moment it exists before cleanup.
+ */
+async function runAssignmentsWriteTest(): Promise<TestOutcome> {
+  const [posts, shifts, operators] = await Promise.all([hierarchyApi.listPosts(), shiftsApi.list(), operatorsApi.search()]);
+  const post = posts[0];
+  const shift = shifts[0];
+  const operator = operators[0];
+  if (!post || !shift || !operator) return skip('needs a real post + shift template + operator — none available to test against');
+
+  const workDate = '2099-01-01';
+  await assignmentsApi.upsert(post.id, { userId: operator.id, shiftTemplateId: shift.id, workDate });
+  const afterCreate = await assignmentsApi.list(shift.id, workDate);
+  if (!afterCreate.some((a) => a.postId === post.id && a.userId === operator.id)) {
+    throw new Error(`PUT /assignments/{postId} reported success but the row is missing from GET /assignments right after`);
+  }
+  await assignmentsApi.remove(post.id, shift.id, workDate);
+  const afterDelete = await assignmentsApi.list(shift.id, workDate);
+  if (afterDelete.some((a) => a.postId === post.id && a.userId === operator.id)) {
+    throw new Error(`DELETE /assignments/{postId} did not remove the test row — check Assignments for workDate=${workDate} and delete it by hand`);
+  }
+  return { ok: true, detail: `PUT → GET (found) → DELETE → GET (gone), post ${post.code}, date ${workDate}` };
+}
+
+async function runSlaRulesWriteTest(): Promise<TestOutcome> {
+  // priority -999 guarantees this test rule never wins the SLA sweep's `order
+  // by priority desc` over any real rule (seed data starts at priority 0),
+  // even for the brief moment it exists.
+  const created = await apiFetch<{ id: string }>('/sla/rules', {
+    method: 'POST', body: { eventType: 'other_stop', targetMin: 999, priority: -999 },
+  });
+  const afterCreate = await slaApi.rules();
+  if (!afterCreate.some((r) => r.id === created.id)) {
+    throw new Error('POST /sla/rules reported success but the new row is missing from GET /sla/rules right after');
+  }
+  await apiFetch(`/sla/rules/${created.id}`, { method: 'DELETE' });
+  const afterDelete = await slaApi.rules();
+  if (afterDelete.some((r) => r.id === created.id)) {
+    throw new Error('DELETE /sla/rules/{id} did not remove the test row — check SLA rules and delete it by hand');
+  }
+  return { ok: true, detail: 'POST → GET (found) → DELETE → GET (gone), priority -999' };
+}
+
+async function runQualityTemplatesWriteTest(): Promise<TestOutcome> {
+  const tag = `DIAGTEST-${Date.now()}`;
+  const created = await apiFetch<{ id: string }>('/quality-check-templates', {
+    method: 'POST', body: { code: tag, name: tag, checkType: 'in_process' },
+  });
+  const afterCreate = await apiFetch<{ id: string }[]>('/quality-check-templates');
+  if (!afterCreate.some((tpl) => tpl.id === created.id)) {
+    throw new Error(`POST /quality-check-templates reported success but ${tag} is missing from GET right after`);
+  }
+  await apiFetch(`/quality-check-templates/${created.id}`, { method: 'DELETE' });
+  const afterDelete = await apiFetch<{ id: string }[]>('/quality-check-templates');
+  if (afterDelete.some((tpl) => tpl.id === created.id)) {
+    throw new Error(`DELETE /quality-check-templates/{id} did not remove ${tag} — check and delete it by hand`);
+  }
+  return { ok: true, detail: `POST → GET (found) → DELETE → GET (gone), tag ${tag}` };
+}
+
+async function runIntegrationEndpointsWriteTest(): Promise<TestOutcome> {
+  const tag = `DIAGTEST-${Date.now()}`;
+  // isActive:false + empty eventTypes is double protection: ReceiveWebhookAsync's
+  // filter (`e.IsActive && e.EventTypes.Contains(...)`) can never match this row,
+  // so it can't fire a real outbound webhook even for the moment it exists.
+  const created = await apiFetch<{ id: string }>('/integrations/endpoints', {
+    method: 'POST', body: { name: tag, url: 'https://example.invalid/diagtest', eventTypes: [], isActive: false },
+  });
+  const afterCreate = await apiFetch<{ id: string }[]>('/integrations/endpoints');
+  if (!afterCreate.some((e) => e.id === created.id)) {
+    throw new Error(`POST /integrations/endpoints reported success but ${tag} is missing from GET right after`);
+  }
+  await apiFetch(`/integrations/endpoints/${created.id}`, { method: 'DELETE' });
+  const afterDelete = await apiFetch<{ id: string }[]>('/integrations/endpoints');
+  if (afterDelete.some((e) => e.id === created.id)) {
+    throw new Error(`DELETE /integrations/endpoints/{id} did not remove ${tag} — check and delete it by hand`);
+  }
+  return { ok: true, detail: `POST → GET (found) → DELETE → GET (gone), tag ${tag}, isActive:false` };
+}
+
 const WRITE_TESTS: WriteTest[] = [
   { id: 'write.causes', label: 'POST /causes → GET → DELETE /causes/{id} → GET', run: runCausesWriteTest },
   { id: 'write.lookups', label: 'POST /lookups/{type} → GET → DELETE /lookups/{type}/{id} → GET', run: runLookupsWriteTest },
   { id: 'write.cadences', label: 'POST /products + /cadences → GET → DELETE /cadences/{id} → GET', run: runCadencesWriteTest },
+  { id: 'write.equipments', label: 'POST /equipments → GET → DELETE /equipments/{id} → GET', run: runEquipmentsWriteTest },
+  { id: 'write.assignments', label: 'PUT /assignments/{postId} → GET → DELETE → GET', run: runAssignmentsWriteTest },
+  { id: 'write.slaRules', label: 'POST /sla/rules → GET → DELETE /sla/rules/{id} → GET', run: runSlaRulesWriteTest },
+  { id: 'write.qualityTemplates', label: 'POST /quality-check-templates → GET → DELETE → GET', run: runQualityTemplatesWriteTest },
+  { id: 'write.integrationEndpoints', label: 'POST /integrations/endpoints → GET → DELETE → GET', run: runIntegrationEndpointsWriteTest },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -709,7 +859,7 @@ export default function ApiTestPage() {
           </div>
 
           <p className="rounded-lg border border-dashed border-border p-2.5 text-caption text-muted-foreground">
-            {t('diag.writeNote', { n: 112 })}
+            {t('diag.writeNote', { n: total })}
           </p>
         </div>
       </div>
