@@ -29,6 +29,8 @@ public class OasCreateOperatorRequestDto
     public string Workspace { get; set; } = "mobile";
     /// <summary>UsersPanel.tsx:25 `interim` field — temporary/agency worker flag. Persisted on oas_users.is_interim.</summary>
     public bool Interim { get; set; }
+    /// <summary>Only meaningful for workspace=web (admin/supervisor sign in with email+password, spec §8.2) — omitted/null for workspace=mobile, which authenticates by PIN instead. Without this, a console account created here had no way to ever set a password and could never sign in.</summary>
+    [MinLength(8)] public string? Password { get; set; }
 }
 
 public class OasSetActiveRequestDto { public bool IsActive { get; set; } }

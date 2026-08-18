@@ -33,7 +33,7 @@ public class OasOperatorService : IOasOperatorService
         return rows.Select(ToDto).ToList();
     }
 
-    public async Task<(bool success, string? error, OasOperatorDto? operatorDto)> CreateAsync(int tenantId, OasCreateOperatorRequestDto request)
+    public async Task<(bool success, string? error, OasOperatorDto? operatorDto)> CreateAsync(int tenantId, OasCreateOperatorRequestDto request, string callerRole)
     {
         if (!Enum.TryParse<OasAppRole>(request.Role, ignoreCase: true, out var role))
         {
@@ -42,6 +42,14 @@ public class OasOperatorService : IOasOperatorService
         if (!Enum.TryParse<OasWorkspace>(request.Workspace, ignoreCase: true, out var workspace))
         {
             return (false, "invalid_workspace", null);
+        }
+        // This action is [OasAuthorize(Roles = "admin,supervisor")] — but SetRole
+        // (promoting an EXISTING user to admin) is admin-only, and creating a
+        // brand-new user already AT role=admin bypassed that restriction entirely
+        // since nothing here checked the caller's own role. Mirror SetRole's rule.
+        if (role == OasAppRole.admin && !string.Equals(callerRole, "admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, "admin_role_requires_admin_caller", null);
         }
 
         var email = request.Email.Trim().ToLowerInvariant();
@@ -62,6 +70,13 @@ public class OasOperatorService : IOasOperatorService
             IsInterim = request.Interim,
             IsActive = true,
             SourceUserId = null, // manually created, never touched by JIT sync
+            // Only web-workspace accounts (admin/supervisor) sign in with a
+            // password — mobile authenticates by PIN (RegeneratePinAsync).
+            // Without this, a console account created here had PasswordHash
+            // permanently null and could never sign in at all.
+            PasswordHash = workspace == OasWorkspace.web && !string.IsNullOrEmpty(request.Password)
+                ? BCrypt.Net.BCrypt.HashPassword(request.Password, BCrypt.Net.BCrypt.GenerateSalt(12))
+                : null,
         };
 
         _db.Users.Add(user);

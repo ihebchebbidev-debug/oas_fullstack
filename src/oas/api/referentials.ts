@@ -13,7 +13,7 @@ export interface OasPinRegenerateResponseDto { success: boolean; message?: strin
 
 export const operatorsApi = {
   search: (q?: string, scopeLineId?: string) => apiFetch<OasOperatorDto[]>('/operators', { query: { q, scopeLineId } }),
-  create: (body: { email: string; employeeCode?: string; displayName: string; phone?: string; role?: string; workspace?: string; interim?: boolean }) =>
+  create: (body: { email: string; employeeCode?: string; displayName: string; phone?: string; role?: string; workspace?: string; interim?: boolean; password?: string }) =>
     apiFetch<OasOperatorDto>('/operators', { method: 'POST', body }),
   setActive: (id: string, isActive: boolean) => apiFetch<{ success: boolean }>(`/operators/${id}/active`, { method: 'PUT', body: { isActive } }),
   setRole: (id: string, role: string) => apiFetch<{ success: boolean }>(`/operators/${id}/role`, { method: 'PUT', body: { role } }),

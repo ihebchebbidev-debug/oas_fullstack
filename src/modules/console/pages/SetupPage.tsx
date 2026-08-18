@@ -17,7 +17,7 @@ import { ApiError } from '@/oas/api/client';
  * the real Users console screen uses — just without the extra navigation.
  */
 
-type Created = { displayName: string; email: string; employeeCode: string; pin?: string };
+type Created = { displayName: string; email: string; employeeCode: string; pin?: string; password?: string };
 
 function normalizeEmployeeCode(raw: string): string {
   const digits = raw.replace(/\D/g, '');
@@ -188,14 +188,22 @@ function SignInForm() {
 
 function ManagePanel() {
   const auth = getAuth();
-  const [role, setRole] = useState<'operator' | 'supervisor'>('operator');
+  const isAdmin = auth?.role === 'admin';
+  const roles: readonly ('operator' | 'supervisor' | 'admin')[] = isAdmin ? ['operator', 'supervisor', 'admin'] : ['operator', 'supervisor'];
+  const [role, setRole] = useState<'operator' | 'supervisor' | 'admin'>('operator');
   const [displayName, setDisplayName] = useState('');
   const [employeeCode, setEmployeeCode] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<Created[]>([]);
 
-  const canSubmit = displayName.trim().length > 0 && (role !== 'operator' || employeeCode.trim().length > 0) && !loading;
+  const isWeb = role === 'supervisor' || role === 'admin';
+  const canSubmit =
+    displayName.trim().length > 0 &&
+    (role !== 'operator' || employeeCode.trim().length > 0) &&
+    (!isWeb || password.length >= 8) &&
+    !loading;
 
   const submit = async () => {
     setLoading(true);
@@ -206,15 +214,17 @@ function ManagePanel() {
       const dto = await operatorsApi.create({
         email, displayName: displayName.trim(), employeeCode: code,
         role, workspace: role === 'operator' ? 'mobile' : 'web',
+        password: isWeb ? password : undefined,
       });
       let pin: string | undefined;
       if (role === 'operator') {
         const pinResult = await operatorsApi.regeneratePin(dto.id);
         pin = pinResult.pin;
       }
-      setCreated((prev) => [{ displayName: displayName.trim(), email, employeeCode: code ?? '—', pin }, ...prev]);
+      setCreated((prev) => [{ displayName: displayName.trim(), email, employeeCode: code ?? '—', pin, password: isWeb ? password : undefined }, ...prev]);
       setDisplayName('');
       setEmployeeCode('');
+      setPassword('');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Failed to create user.');
     } finally {
@@ -236,21 +246,22 @@ function ManagePanel() {
         className="space-y-3 rounded-xl border border-border bg-card p-5"
       >
         <p className="text-xs text-muted-foreground">
-          Creates a real account via the same authenticated endpoint the Users console screen uses. Operators log in with a badge + 4-digit PIN on the mobile app — shown once below, right after creation.
+          Creates a real account via the same authenticated endpoint the Users console screen uses. Operators log into the mobile app with a badge + 4-digit PIN (generated for you); supervisors/admins log into the web console with the email + password below — both shown once, right after creation.
         </p>
         <Field label="Role">
           <div className="flex gap-1 rounded-md bg-muted p-1 text-sm">
-            {(['operator', 'supervisor'] as const).map((r) => (
+            {roles.map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRole(r)}
                 className={cn('flex-1 rounded px-3 py-1.5 capitalize', role === r ? 'bg-card shadow-sm' : 'text-muted-foreground')}
               >
-                {r === 'operator' ? 'Operator / technician' : 'Supervisor'}
+                {r === 'operator' ? 'Operator / technician' : r}
               </button>
             ))}
           </div>
+          {!isAdmin && <p className="mt-1 text-[0.6875rem] text-muted-foreground">Creating another admin needs an admin caller — you're signed in as supervisor.</p>}
         </Field>
         <Field label="Display name">
           <input className={inputCls} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="John Smith" />
@@ -260,10 +271,10 @@ function ManagePanel() {
             <input className={inputCls} value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} placeholder="999102" inputMode="numeric" />
           </Field>
         )}
-        {role === 'supervisor' && (
-          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-            Supervisor accounts sign into the web console with email + password, but this endpoint doesn't set a password — there's no self-service way to set one yet. Ask me to wire that up if you need it; for now this creates the account record only.
-          </p>
+        {isWeb && (
+          <Field label="Password (min 8 chars) — for web console sign-in">
+            <input className={inputCls} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
         )}
         {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
         <button
@@ -287,21 +298,23 @@ function ManagePanel() {
 
 function CreatedCard({ c }: { c: Created }) {
   const [copied, setCopied] = useState(false);
+  const secret = c.pin ?? c.password;
+  const secretLabel = c.pin ? 'PIN — shown once, write it down' : 'Password you set — email below is auto-generated, save it too';
   return (
     <div className="rounded-lg border border-border bg-card p-4 text-sm">
       <p className="font-medium">{c.displayName}</p>
-      <p className="text-xs text-muted-foreground">{c.employeeCode}</p>
-      {c.pin && (
+      <p className="text-xs text-muted-foreground">{c.pin ? c.employeeCode : c.email}</p>
+      {secret && (
         <div className="mt-2 flex items-center justify-between rounded-md bg-muted px-3 py-2">
           <div>
-            <p className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">PIN — shown once, write it down</p>
-            <p className="font-mono text-lg tracking-widest">{c.pin}</p>
+            <p className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">{secretLabel}</p>
+            <p className="font-mono text-lg tracking-widest">{secret}</p>
           </div>
           <button
             type="button"
-            onClick={() => { void navigator.clipboard.writeText(c.pin ?? ''); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+            onClick={() => { void navigator.clipboard.writeText(secret); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
             className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-            aria-label="Copy PIN"
+            aria-label="Copy"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </button>

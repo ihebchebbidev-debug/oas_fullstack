@@ -32,8 +32,13 @@ public class OasOperatorController : OasControllerBase
     [OasAuthorize(Roles = "admin,supervisor")]
     public async Task<ActionResult<OasOperatorDto>> Create([FromBody] OasCreateOperatorRequestDto request)
     {
-        var (success, error, dto) = await _operators.CreateAsync(CurrentTenantId, request);
-        if (!success) return Problem(statusCode: 409, title: error ?? "conflict");
+        var (success, error, dto) = await _operators.CreateAsync(CurrentTenantId, request, CurrentOasRole);
+        if (!success)
+        {
+            return error == "admin_role_requires_admin_caller"
+                ? Problem(statusCode: 403, title: error)
+                : Problem(statusCode: 409, title: error ?? "conflict");
+        }
         return Ok(dto);
     }
 
