@@ -119,7 +119,13 @@ export default function ImportPanel() {
   }
 
   const reset = () => { setReports([]); setImported({}); setFileName(null); };
-  const importable = reports.filter((r) => r.dataset && r.errors.length === 0);
+  // Duplicates-within-sheet were only ever shown as a warning badge, never
+  // actually blocked — the backend has no per-row transaction (one
+  // SaveChangesAsync for the whole batch), so a duplicate key column hits
+  // the DB's unique constraint, throws uncaught, and rolls back every row
+  // in the sheet including the genuinely valid ones, with no way to tell
+  // afterwards why an import silently landed at "0 rows imported".
+  const importable = reports.filter((r) => r.dataset && r.errors.length === 0 && r.duplicates.length === 0);
 
   async function runAll() {
     const done: Record<string, number> = { ...imported };

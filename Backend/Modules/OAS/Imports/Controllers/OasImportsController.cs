@@ -5,9 +5,15 @@ using MyApi.Modules.OAS.Imports.Services;
 
 namespace MyApi.Modules.OAS.Imports.Controllers;
 
+// Verified only ImportPanel.tsx (web) calls any action here. GetAll (GET
+// /imports) is also role-restricted the same way and is deliberately
+// caught with .catch(() => []) in refStore.ts's shared reloadAll() batch
+// (mobile's DeclareStop triggers that batch too) — this attribute doesn't
+// change that, both 403 reasons land in the same safe fallback.
 [Route("api/oas/imports")]
 [OasPluginGate("OA0008REFERENTIALS")]
 [OasAuthorize(Roles = "admin,supervisor")]
+[OasWorkspace("web")]
 public class OasImportsController : OasControllerBase
 {
     private readonly IOasImportService _service;

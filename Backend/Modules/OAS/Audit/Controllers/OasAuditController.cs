@@ -8,6 +8,7 @@ namespace MyApi.Modules.OAS.Audit.Controllers;
 [Route("api/oas/audit")]
 [OasPluginGate("OA0011CONSOLE")]
 [OasAuthorize(Roles = "admin,supervisor")]
+[OasWorkspace("web")]
 public class OasAuditController : OasControllerBase
 {
     private readonly IOasAuditService _service;

@@ -11,6 +11,7 @@ const OperatorHome = lazy(() => import('@/modules/shopfloor/pages/OperatorHome')
 const DeclareStop = lazy(() => import('@/modules/declarations/pages/DeclareStop'));
 const DeclareProduction = lazy(() => import('@/modules/declarations/pages/DeclareProduction'));
 const ChangeoverPage = lazy(() => import('@/modules/declarations/pages/ChangeoverPage'));
+const QualityCheckPage = lazy(() => import('@/modules/declarations/pages/QualityCheckPage'));
 const ScanPage = lazy(() => import('@/modules/traceability/pages/ScanPage'));
 const ShopFloorPage = lazy(() => import('@/modules/shopfloor/pages/ShopFloorPage'));
 const NeighborStop = lazy(() => import('@/modules/declarations/pages/NeighborStop'));
@@ -337,6 +338,7 @@ export default function MobileApp() {
             <Route path="stop" element={<PluginGate code="OA0004DECLARATIONS"><DeclareStop /></PluginGate>} />
             <Route path="production" element={<PluginGate code="OA0004DECLARATIONS"><DeclareProduction /></PluginGate>} />
             <Route path="changeover" element={<PluginGate code="OA0004DECLARATIONS"><ChangeoverPage /></PluginGate>} />
+            <Route path="quality" element={<PluginGate code="OA0004DECLARATIONS"><QualityCheckPage /></PluginGate>} />
             <Route path="scan" element={<PluginGate code="OA0012TRACEABILITY"><ScanPage /></PluginGate>} />
             <Route path="neighbor" element={<PluginGate code="OA0004DECLARATIONS"><NeighborStop /></PluginGate>} />
             <Route path="map" element={<PluginGate code="OA0003SHOPFLOOR"><ShopFloorPage /></PluginGate>} />

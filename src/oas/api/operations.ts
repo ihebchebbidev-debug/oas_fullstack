@@ -65,3 +65,37 @@ export const changeoversApi = {
   finish: (id: string) => apiFetch<OasChangeoverDto>(`/changeovers/${id}/finish`, { method: 'PUT' }),
   list: (postId?: string, status?: string) => apiFetch<OasChangeoverDto[]>('/changeovers', { query: { postId, status } }),
 };
+
+/* ------------------------------------------------------------------ */
+/* Quality checks (spec §6.1 "Contrôle qualité")                        */
+/* ------------------------------------------------------------------ */
+
+export interface OasQualityCheckDto {
+  id: string; postId: string; checkType: string; result: string;
+  quantityChecked: number; quantityRejected: number; occurredAt: string;
+}
+export interface OasQualityCheckTemplateDto { id: string; code: string; name: string; checkType: string; isActive: boolean }
+export interface OasQualityCheckTemplateItemDto {
+  id: string; label: string; valueType: string; minValue: number | null; maxValue: number | null; isRequired: boolean; sortOrder: number;
+}
+
+export const qualityChecksApi = {
+  create: (body: {
+    clientEventId: string; postId: string; productionOrderId?: string; productId?: string; changeoverId?: string;
+    templateId?: string; checkType: string; result: string; quantityChecked?: number; quantityRejected?: number;
+    causeId?: string; note?: string; occurredAt: string;
+  }) => apiFetch<OasQualityCheckDto>('/quality-checks', { method: 'POST', body }),
+  list: (postId?: string) => apiFetch<OasQualityCheckDto[]>('/quality-checks', { query: { postId } }),
+};
+
+export const qualityTemplatesApi = {
+  list: () => apiFetch<OasQualityCheckTemplateDto[]>('/quality-check-templates'),
+  create: (body: { code: string; name: string; checkType: string }) =>
+    apiFetch<OasQualityCheckTemplateDto>('/quality-check-templates', { method: 'POST', body }),
+  update: (id: string, body: { code: string; name: string; checkType: string }) =>
+    apiFetch<{ success: boolean }>(`/quality-check-templates/${id}`, { method: 'PUT', body }),
+  delete: (id: string) => apiFetch<{ success: boolean }>(`/quality-check-templates/${id}`, { method: 'DELETE' }),
+  items: (id: string) => apiFetch<OasQualityCheckTemplateItemDto[]>(`/quality-check-templates/${id}/items`),
+  putItems: (id: string, items: { label: string; valueType?: string; minValue?: number; maxValue?: number; isRequired?: boolean; sortOrder?: number }[]) =>
+    apiFetch<{ success: boolean }>(`/quality-check-templates/${id}/items`, { method: 'PUT', body: items }),
+};

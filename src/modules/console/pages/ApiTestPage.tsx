@@ -83,6 +83,11 @@ function skip(reason: string): TestOutcome {
   return { ok: true, skipped: true, detail: reason };
 }
 
+/** This diagnostics page always authenticates as web/console (signInConsole/setupFirstAdmin) — it never performs a PIN/mobile login. A handful of endpoints are intentionally [OasWorkspace("mobile")]-restricted (operator clock-in, presence self-confirm), so calling them from here always 403s with this exact body — a workspace mismatch, not a real failure. */
+function isWrongWorkspace(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 403 && e.message === 'wrong_workspace';
+}
+
 /** Every list endpoint is typed as an array on the frontend — assert it really is one. */
 function isArray(v: unknown): string | null {
   return Array.isArray(v) ? null : `expected an array, got ${v === null ? 'null' : typeof v}`;
@@ -219,6 +224,7 @@ const TESTS: DiagTest[] = [
         return { ok: true, detail: 'active session found' };
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) return { ok: true, detail: 'no active session (normal)' };
+        if (isWrongWorkspace(e)) return skip('mobile-only endpoint (operator clock-in) — not callable from this console/web session');
         throw e;
       }
     },
@@ -631,6 +637,7 @@ async function runPostSessionLifecycleTest(ctx: DiagCtx): Promise<TestOutcome> {
       body: { clientEventId: crypto.randomUUID(), postId: ctx.postId, startedVia: 'manual' },
     });
   } catch (e) {
+    if (isWrongWorkspace(e)) return skip('mobile-only endpoint (operator clock-in) — not callable from this console/web session');
     // A real operator (or the diag bot itself, from a prior interrupted run)
     // already has an active session here — a real, expected conflict, not a
     // bug. forceRelay would forcibly end a REAL session to make room, which
@@ -714,8 +721,13 @@ async function runPresenceWriteTest(ctx: DiagCtx): Promise<TestOutcome> {
   if (!ctx.shiftId || !operator) return skip('needs a real shift template + operator — none available to test against');
   const workDate = '2099-01-01';
   await presenceApi.set(operator.id, { workDate, shiftTemplateId: ctx.shiftId, status: 'expected' });
-  const confirmed = await presenceApi.confirm(operator.id, { workDate, shiftTemplateId: ctx.shiftId });
-  return { ok: true, detail: `PUT /presence/{operatorId} → POST /presence/{operatorId}/confirm, date ${workDate} (permanent — no delete endpoint, tiny row)`, json: confirmed };
+  try {
+    const confirmed = await presenceApi.confirm(operator.id, { workDate, shiftTemplateId: ctx.shiftId });
+    return { ok: true, detail: `PUT /presence/{operatorId} → POST /presence/{operatorId}/confirm, date ${workDate} (permanent — no delete endpoint, tiny row)`, json: confirmed };
+  } catch (e) {
+    if (isWrongWorkspace(e)) return skip(`PUT /presence/{operatorId} succeeded (web); /confirm is mobile-only (operator self-confirms via PIN login) — not callable from this console session`);
+    throw e;
+  }
 }
 
 async function runShiftSignoffWriteTest(ctx: DiagCtx): Promise<TestOutcome> {

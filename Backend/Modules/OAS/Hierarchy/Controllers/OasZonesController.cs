@@ -14,14 +14,14 @@ public class OasZonesController : OasControllerBase
 
     [HttpGet] public async Task<ActionResult<IReadOnlyList<OasZoneDto>>> GetAll([FromQuery] Guid? siteId) => Ok(await _service.GetZonesAsync(CurrentTenantId, siteId));
 
-    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasZoneDto>> Create([FromBody] OasZoneRequestDto request) => Ok(await _service.CreateZoneAsync(CurrentTenantId, request));
 
-    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Update(Guid id, [FromBody] OasZoneRequestDto request)
         => await _service.UpdateZoneAsync(CurrentTenantId, id, request) ? Ok(new { success = true }) : NotFound();
 
-    [HttpPost("{id}/archive")] [OasAuthorize(Roles = "admin")]
+    [HttpPost("{id}/archive")] [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<IActionResult> Archive(Guid id)
         => await _service.ArchiveZoneAsync(CurrentTenantId, id) ? Ok(new { success = true }) : NotFound();
 }

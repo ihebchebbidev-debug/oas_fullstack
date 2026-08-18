@@ -30,12 +30,20 @@ public class OasQualityCheckTemplatesController : OasControllerBase
     [HttpGet] public async Task<ActionResult<IReadOnlyList<OasQualityCheckTemplateDto>>> GetAll() => Ok(await _service.GetTemplatesAsync(CurrentTenantId));
 
     [HttpPost] [OasAuthorize(Roles = "admin,supervisor")]
-    public async Task<ActionResult<OasQualityCheckTemplateDto>> Create([FromBody] OasQualityCheckTemplateRequestDto request)
-        => Ok(await _service.CreateTemplateAsync(CurrentTenantId, request));
+    public async Task<IActionResult> Create([FromBody] OasQualityCheckTemplateRequestDto request)
+    {
+        var (success, error, dto) = await _service.CreateTemplateAsync(CurrentTenantId, request);
+        if (!success) return Problem(statusCode: 409, title: error ?? "conflict");
+        return Ok(dto);
+    }
 
     [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")]
     public async Task<IActionResult> Update(Guid id, [FromBody] OasQualityCheckTemplateRequestDto request)
-        => await _service.UpdateTemplateAsync(CurrentTenantId, id, request) ? Ok(new { success = true }) : NotFound();
+    {
+        var (success, error) = await _service.UpdateTemplateAsync(CurrentTenantId, id, request);
+        if (!success) return error == "not_found" ? NotFound() : Problem(statusCode: 409, title: error);
+        return Ok(new { success = true });
+    }
 
     [HttpDelete("{id}")] [OasAuthorize(Roles = "admin")]
     public async Task<IActionResult> Delete(Guid id)

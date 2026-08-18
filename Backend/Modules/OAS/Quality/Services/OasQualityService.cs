@@ -11,8 +11,8 @@ public interface IOasQualityService
     Task<IReadOnlyList<OasQualityCheckDto>> GetChecksAsync(int tenantId, Guid? postId);
 
     Task<IReadOnlyList<OasQualityCheckTemplateDto>> GetTemplatesAsync(int tenantId);
-    Task<OasQualityCheckTemplateDto> CreateTemplateAsync(int tenantId, OasQualityCheckTemplateRequestDto request);
-    Task<bool> UpdateTemplateAsync(int tenantId, Guid id, OasQualityCheckTemplateRequestDto request);
+    Task<(bool success, string? error, OasQualityCheckTemplateDto? dto)> CreateTemplateAsync(int tenantId, OasQualityCheckTemplateRequestDto request);
+    Task<(bool success, string? error)> UpdateTemplateAsync(int tenantId, Guid id, OasQualityCheckTemplateRequestDto request);
     Task<bool> DeleteTemplateAsync(int tenantId, Guid id);
 
     Task<IReadOnlyList<OasQualityCheckTemplateItemDto>> GetTemplateItemsAsync(int tenantId, Guid templateId);
@@ -57,25 +57,45 @@ public class OasQualityService : IOasQualityService
         return rows.Select(ToTemplateDto).ToList();
     }
 
-    public async Task<OasQualityCheckTemplateDto> CreateTemplateAsync(int tenantId, OasQualityCheckTemplateRequestDto request)
+    public async Task<(bool success, string? error, OasQualityCheckTemplateDto? dto)> CreateTemplateAsync(int tenantId, OasQualityCheckTemplateRequestDto request)
     {
         var template = new OasQualityCheckTemplate
         {
             TenantId = tenantId, Code = request.Code, Name = request.Name, CheckType = Enum.Parse<OasCheckType>(request.CheckType, true),
         };
         _db.Set<OasQualityCheckTemplate>().Add(template);
-        await _db.SaveChangesAsync();
-        return ToTemplateDto(template);
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // (TenantId, Code) unique constraint — used to surface as an
+            // uncaught 500 instead of a real conflict, same class of gap
+            // already closed on Events/other referentials this session.
+            return (false, "code_already_exists", null);
+        }
+        return (true, null, ToTemplateDto(template));
     }
 
-    public async Task<bool> UpdateTemplateAsync(int tenantId, Guid id, OasQualityCheckTemplateRequestDto request)
+    public async Task<(bool success, string? error)> UpdateTemplateAsync(int tenantId, Guid id, OasQualityCheckTemplateRequestDto request)
     {
         var template = await _db.Set<OasQualityCheckTemplate>().FindAsync(id);
-        if (template is null) return false;
+        if (template is null) return (false, "not_found");
         template.Code = request.Code; template.Name = request.Name; template.CheckType = Enum.Parse<OasCheckType>(request.CheckType, true);
-        await _db.SaveChangesAsync();
-        return true;
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            return (false, "code_already_exists");
+        }
+        return (true, null);
     }
+
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
 
     public async Task<bool> DeleteTemplateAsync(int tenantId, Guid id)
     {

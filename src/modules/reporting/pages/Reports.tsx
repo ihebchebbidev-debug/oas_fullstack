@@ -18,6 +18,7 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { useI18n } from '@/i18n/I18nProvider';
 import { csvExport } from '@/shared/lib/csv';
 import { excelExport } from '@/shared/lib/excel';
+import { pushToast } from '@/shared/lib/toast';
 
 /** BL-039 — shift day (06:00 → 06:00) presets plus a free from/to range. */
 const PERIODS = ['shift', 'day', 'week', 'month', 'custom'] as const;
@@ -63,16 +64,20 @@ export default function Reports() {
 
   useEffect(() => {
     let cancelled = false;
+    // Unlike liveState.ts's own polling (which catches and keeps last-known
+    // state on a failed tick), these were unguarded — a single 4xx/5xx left
+    // an unhandled rejection and the page silently stuck on stale/empty data
+    // with no indication anything went wrong.
     void fetchLiveRange(range.from, range.to).then((r) => {
       if (cancelled) return;
       setKPI(r.kpi);
       setPareto(r.pareto);
       setLineComparison(r.lines);
       setTrend(r.trend);
-    });
+    }).catch(() => { if (!cancelled) pushToast('common.actionFailed'); });
     void kpiApi.cadenceGap({ from: range.from, to: range.to }).then((rows) => {
       if (!cancelled) setCadenceGapRows(rows);
-    });
+    }).catch(() => { if (!cancelled) pushToast('common.actionFailed'); });
     return () => { cancelled = true; };
     // `lang` triggers a re-fetch so pareto cause labels (resolved server-round-trip
     // side, bilingual data — never a static i18n key) refresh immediately on switch.
@@ -82,7 +87,7 @@ export default function Reports() {
   // tied to the period, and re-used to label the compliance table below
   // instead of a hardcoded per-kind constant that could silently drift.
   useEffect(() => {
-    void slaApi.rules().then(setSlaRules);
+    void slaApi.rules().then(setSlaRules).catch(() => pushToast('common.actionFailed'));
   }, []);
 
   const producedOk = KPI.producedOk;

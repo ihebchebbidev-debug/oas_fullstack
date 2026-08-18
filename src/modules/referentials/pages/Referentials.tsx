@@ -11,6 +11,7 @@ import { completeness, useRefState } from '@/oas/refStore';
 import { useHierarchyState } from '@/oas/hierarchyStore';
 import { HierarchyManager } from '../components/HierarchyManager';
 import { ShiftCalendars } from '../components/ShiftCalendars';
+import { QualityTemplates } from '../components/QualityTemplates';
 import { useT } from '@/i18n/I18nProvider';
 
 
@@ -92,8 +93,12 @@ export default function Referentials() {
         </div>
       </div>
 
-      <div className="min-w-0 px-3 pb-6 sm:px-4">
+      <div className="min-w-0 px-3 pb-4 sm:px-4">
         <CauseReviewQueue />
+      </div>
+
+      <div className="min-w-0 px-3 pb-6 sm:px-4">
+        <QualityTemplates />
       </div>
     </>
   );

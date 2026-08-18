@@ -48,12 +48,40 @@ public class OasEventService : IOasEventService
     private readonly OasDbContext _db;
     private readonly IOasSseBroadcaster _broadcaster;
     private readonly string? _oasSlug;
+    private readonly System.Security.Claims.ClaimsPrincipal? _user;
 
     public OasEventService(OasDbContext db, IOasSseBroadcaster broadcaster, IHttpContextAccessor httpContextAccessor)
     {
         _db = db;
         _broadcaster = broadcaster;
         _oasSlug = httpContextAccessor.HttpContext?.Items["OasSlug"] as string;
+        _user = httpContextAccessor.HttpContext?.User;
+    }
+
+    /// <summary>
+    /// BL-012 site/zone/line perimeter (spec §4.1, §8.0): a caller with
+    /// scope_* claims only sees events under their assigned perimeter — was
+    /// previously enforced client-side only (useScope().inScope() filtering
+    /// an already-fetched, unfiltered full-tenant list), so a scoped
+    /// supervisor/operator calling this endpoint directly saw every line's
+    /// events regardless of assignment. Most-specific scope wins, mirroring
+    /// IOasScopeFilter.IsLineInScope's priority (line > zone > site > none).
+    /// </summary>
+    private IQueryable<OasEvent> ApplyScope(IQueryable<OasEvent> query)
+    {
+        var siteId = TryParseGuidClaim("oas_scope_site_id");
+        var zoneId = TryParseGuidClaim("oas_scope_zone_id");
+        var lineId = TryParseGuidClaim("oas_scope_line_id");
+        if (siteId is null && zoneId is null && lineId is null) return query;
+        if (lineId is not null) return query.Where(e => e.LineId == lineId);
+        if (zoneId is not null) return query.Where(e => e.ZoneId == zoneId);
+        return query.Where(e => e.SiteId == siteId);
+    }
+
+    private Guid? TryParseGuidClaim(string type)
+    {
+        var claim = _user?.FindFirst(type)?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
     }
 
     private void Broadcast(int tenantId, string eventType, OasEventDto dto)
@@ -112,7 +140,7 @@ public class OasEventService : IOasEventService
 
     public async Task<IReadOnlyList<OasEventDto>> GetAsync(int tenantId, string? kind, string? stage, string? q, Guid? lineId, DateTimeOffset? from, DateTimeOffset? to)
     {
-        var query = _db.Set<OasEvent>().AsQueryable();
+        var query = ApplyScope(_db.Set<OasEvent>().AsQueryable());
         if (!string.IsNullOrEmpty(kind) && Enum.TryParse<OasEventType>(kind, true, out var kindEnum)) query = query.Where(e => e.EventType == kindEnum);
         if (!string.IsNullOrEmpty(stage) && Enum.TryParse<OasEventStatus>(stage, true, out var stageEnum)) query = query.Where(e => e.Status == stageEnum);
         if (lineId is not null) query = query.Where(e => e.LineId == lineId);

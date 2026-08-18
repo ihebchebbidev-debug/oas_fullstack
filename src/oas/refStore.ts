@@ -11,7 +11,7 @@ import type { EventKind } from './demo';
 import {
   cadencesApi, causesApi, equipmentsApi, importsApi, operatorsApi, productsApi, shiftsApi,
   type OasCadenceDto, type OasCauseDto, type OasCauseProposalDto, type OasEquipmentDto,
-  type OasOperatorDto, type OasProductDto, type OasShiftSignoffDto, type OasShiftTemplateDto,
+  type OasImportDto, type OasOperatorDto, type OasProductDto, type OasShiftSignoffDto, type OasShiftTemplateDto,
 } from './api/referentials';
 import { hierarchyApi } from './api/hierarchy';
 import type { OasRole } from './authStore';
@@ -239,14 +239,19 @@ async function reloadCadences() {
 
 async function reloadAll() {
   const [operators, equipment, products, causeTree, causeUsage, proposals, shifts, signoffs, imports, posts] = await Promise.all([
-    // GET /operators is admin/supervisor-only server-side (the user directory
-    // shouldn't be readable by a plain shop-floor operator token) — but a
-    // mobile operator session calls ensureRefLoaded() too, just for the
-    // cause tree (DeclareStop's 2-tap flow), so a 403 here must not fail
-    // the whole Promise.all and take causeTree down with it.
+    // GET /operators and GET /imports are both admin/supervisor-only
+    // server-side — but a mobile operator session calls ensureRefLoaded()
+    // too, just for the cause tree (DeclareStop's 2-tap flow), so a 403 on
+    // either must not fail the whole Promise.all and take causeTree down
+    // with it. (Confirmed this was a real, live gap: /imports was the one
+    // admin-only call left uncaught after the /operators fix, so the
+    // Promise.all — and therefore the cause tree — was still failing for
+    // every real operator session.)
     operatorsApi.search().catch(() => [] as OasOperatorDto[]),
     equipmentsApi.list(), productsApi.list(), causesApi.tree(), causesApi.usage(),
-    causesApi.listProposals(), shiftsApi.list(), shiftsApi.signoffs(), importsApi.list(), hierarchyApi.listPosts(),
+    causesApi.listProposals(), shiftsApi.list(), shiftsApi.signoffs(),
+    importsApi.list().catch(() => [] as OasImportDto[]),
+    hierarchyApi.listPosts(),
   ]);
   const postCodeById = new Map(posts.map((p) => [p.id, p.code]));
   const shiftCodeById = new Map(shifts.map((s) => [s.id, s.code]));

@@ -112,6 +112,15 @@ public static class OasEndpoints
             var lastEventId = context.Request.Headers["Last-Event-ID"].FirstOrDefault();
             _ = lastEventId; // spec §6.3: reconnection replay is a Lot-5 concern once event history exists to replay from.
 
+            // PeriodicTimer's first tick doesn't fire until a full period has
+            // elapsed — with nothing else written before that, the response
+            // headers/body never actually reach the client until the first
+            // 15s heartbeat, so EventSource.onopen (and the UI's "connected"
+            // state) was silently stuck for up to 15s on every single new
+            // connection. Flush immediately so it opens right away.
+            await context.Response.WriteAsync(": connected\n\n", ct);
+            await context.Response.Body.FlushAsync(ct);
+
             using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(15));
             var heartbeatTask = Task.Run(async () =>
             {

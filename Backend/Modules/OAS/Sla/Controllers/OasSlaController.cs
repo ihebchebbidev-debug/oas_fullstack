@@ -12,16 +12,17 @@ public class OasSlaController : OasControllerBase
     private readonly IOasSlaService _service;
     public OasSlaController(IOasSlaService service) => _service = service;
 
-    [HttpGet("rules")] public async Task<ActionResult<IReadOnlyList<OasSlaRuleDto>>> GetRules() => Ok(await _service.GetRulesAsync(CurrentTenantId));
+    // Verified: only Reports.tsx (web) calls GetRules; the responder-availability endpoints below stay unrestricted since eventStore.ts (shared with InterventionInbox, mobile+web) depends on them.
+    [HttpGet("rules")] [OasWorkspace("web")] public async Task<ActionResult<IReadOnlyList<OasSlaRuleDto>>> GetRules() => Ok(await _service.GetRulesAsync(CurrentTenantId));
 
-    [HttpPost("rules")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPost("rules")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasSlaRuleDto>> CreateRule([FromBody] OasSlaRuleRequestDto request) => Ok(await _service.CreateRuleAsync(CurrentTenantId, request));
 
-    [HttpPut("rules/{id}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut("rules/{id}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> UpdateRule(Guid id, [FromBody] OasSlaRuleRequestDto request)
         => await _service.UpdateRuleAsync(CurrentTenantId, id, request) ? Ok(new { success = true }) : NotFound();
 
-    [HttpDelete("rules/{id}")] [OasAuthorize(Roles = "admin")]
+    [HttpDelete("rules/{id}")] [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<IActionResult> DeleteRule(Guid id)
         => await _service.DeleteRuleAsync(CurrentTenantId, id) ? Ok(new { success = true }) : NotFound();
 

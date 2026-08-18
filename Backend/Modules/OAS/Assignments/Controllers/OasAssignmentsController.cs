@@ -20,23 +20,26 @@ public class OasAssignmentsController : OasControllerBase
     public async Task<ActionResult<IReadOnlyList<OasAssignmentDto>>> GetPublished([FromQuery] Guid shift, [FromQuery] DateOnly date)
         => Ok(await _service.GetAsync(CurrentTenantId, shift, date, onlyPublished: true));
 
-    [HttpPut("{postId}")] [OasAuthorize(Roles = "admin,supervisor")]
+    // Upsert/Delete/AutoFill/ClearAll/Publish: verified only Assignments.tsx
+    // (web console, RosterPanel drag/drop) calls these — no mobile screen
+    // has any UI path to them.
+    [HttpPut("{postId}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasAssignmentDto>> Upsert(Guid postId, [FromBody] OasAssignmentRequestDto request)
         => Ok(await _service.UpsertAsync(CurrentTenantId, CurrentOasUserId, postId, request));
 
-    [HttpDelete("{postId}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpDelete("{postId}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Delete(Guid postId, [FromQuery] Guid shift, [FromQuery] DateOnly date)
         => await _service.DeleteAsync(CurrentTenantId, postId, shift, date) ? Ok(new { success = true }) : NotFound();
 
-    [HttpPost("auto-fill")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPost("auto-fill")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> AutoFill([FromQuery] Guid shift, [FromQuery] DateOnly date)
         => Ok(new { filled = await _service.AutoFillAsync(CurrentTenantId, CurrentOasUserId, shift, date) });
 
-    [HttpDelete] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpDelete] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> ClearAll([FromQuery] Guid shift, [FromQuery] DateOnly date)
         => Ok(new { removed = await _service.ClearAllAsync(CurrentTenantId, shift, date) });
 
-    [HttpPost("publish")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPost("publish")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Publish([FromQuery] Guid shift, [FromQuery] DateOnly date, [FromQuery] Guid? postId)
         => Ok(new { published = await _service.PublishAsync(CurrentTenantId, shift, date, postId) });
 
@@ -55,12 +58,12 @@ public class OasPresenceController : OasControllerBase
     private readonly IOasAssignmentService _service;
     public OasPresenceController(IOasAssignmentService service) => _service = service;
 
-    [HttpPut("{operatorId}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut("{operatorId}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Set(Guid operatorId, [FromBody] OasPresenceRequestDto request)
         => await _service.SetPresenceAsync(CurrentTenantId, operatorId, request) ? Ok(new { success = true }) : NotFound();
 
     /// <summary>v10: mobile self-confirm only — a non-privileged caller may confirm their OWN presence, never a coworker's (same guard as OasResponderAvailabilityController.Set; this had none and let any authenticated user mark anyone "present").</summary>
-    [HttpPost("{operatorId}/confirm")]
+    [HttpPost("{operatorId}/confirm")] [OasWorkspace("mobile")]
     public async Task<IActionResult> Confirm(Guid operatorId, [FromBody] OasPresenceConfirmRequestDto request)
     {
         var isPrivileged = CurrentOasRole is "admin" or "supervisor";

@@ -12,16 +12,19 @@ public class OasSitesController : OasControllerBase
     private readonly IOasHierarchyService _service;
     public OasSitesController(IOasHierarchyService service) => _service = service;
 
+    // GetAll deliberately unrestricted — hierarchyStore.ts's reloadAll() calls
+    // all four Sites/Zones/Lines/Posts GETs in one Promise.all, which mobile
+    // pages (ScanPage, ShopFloorPage, OperatorHome, DeclareStop) also trigger.
     [HttpGet] public async Task<ActionResult<IReadOnlyList<OasSiteDto>>> GetAll() => Ok(await _service.GetSitesAsync(CurrentTenantId));
 
-    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasSiteDto>> Create([FromBody] OasSiteRequestDto request) => Ok(await _service.CreateSiteAsync(CurrentTenantId, request));
 
-    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Update(Guid id, [FromBody] OasSiteRequestDto request)
         => await _service.UpdateSiteAsync(CurrentTenantId, id, request) ? Ok(new { success = true }) : NotFound();
 
-    [HttpPost("{id}/archive")] [OasAuthorize(Roles = "admin")]
+    [HttpPost("{id}/archive")] [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<IActionResult> Archive(Guid id)
         => await _service.ArchiveSiteAsync(CurrentTenantId, id) ? Ok(new { success = true }) : NotFound();
 }

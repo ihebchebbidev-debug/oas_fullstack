@@ -27,7 +27,7 @@ public class OasPluginActivationController : OasControllerBase
     }
 
     [HttpPut("{code}")]
-    [OasAuthorize(Roles = "admin")]
+    [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<IActionResult> SetEnabled(string code, [FromBody] OasSetPluginActivationRequestDto request)
     {
         var actor = User.FindFirst("oas_user_id")?.Value;
@@ -44,7 +44,7 @@ public class OasPluginActivationController : OasControllerBase
     }
 
     [HttpPost("bulk")]
-    [OasAuthorize(Roles = "admin")]
+    [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<ActionResult<OasBulkPluginActivationResponseDto>> Reset()
     {
         var actor = User.FindFirst("oas_user_id")?.Value;

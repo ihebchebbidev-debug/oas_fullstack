@@ -21,15 +21,18 @@ public class OasCadencesController : OasControllerBase
         return dto is null ? NotFound() : Ok(dto);
     }
 
-    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")]
+    // GetAll/History deliberately left workspace-unrestricted — refStore.ts's
+    // reloadCadences() calls both as part of the shared referentials load
+    // that mobile's DeclareStop screen also triggers.
+    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasCadenceDto>> CreateVersion([FromBody] OasCadenceRequestDto request)
         => Ok(await _service.UpsertNewVersionAsync(CurrentTenantId, CurrentOasUserIdOrNull, request));
 
-    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Update(Guid id, [FromBody] OasCadenceRequestDto request)
         => await _service.UpdateAsync(CurrentTenantId, id, request) ? Ok(new { success = true }) : NotFound();
 
-    [HttpDelete("{id}")] [OasAuthorize(Roles = "admin")]
+    [HttpDelete("{id}")] [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<IActionResult> Delete(Guid id)
         => await _service.DeleteAsync(CurrentTenantId, id) ? Ok(new { success = true }) : NotFound();
 

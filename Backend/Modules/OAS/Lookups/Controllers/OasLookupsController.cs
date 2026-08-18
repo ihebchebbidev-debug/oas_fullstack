@@ -15,15 +15,15 @@ public class OasLookupsController : OasControllerBase
     [HttpGet("{type}")]
     public async Task<ActionResult<IReadOnlyList<OasLookupValueDto>>> GetByType(string type) => Ok(await _service.GetByTypeAsync(CurrentTenantId, type));
 
-    [HttpPost("{type}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPost("{type}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasLookupValueDto>> Create(string type, [FromBody] OasLookupValueRequestDto request)
         => Ok(await _service.CreateAsync(CurrentTenantId, type, request));
 
-    [HttpPut("{type}/{id}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut("{type}/{id}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Update(string type, Guid id, [FromBody] OasLookupValueRequestDto request)
         => await _service.UpdateAsync(CurrentTenantId, type, id, request) ? Ok(new { success = true }) : NotFound();
 
-    [HttpDelete("{type}/{id}")] [OasAuthorize(Roles = "admin")]
+    [HttpDelete("{type}/{id}")] [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<IActionResult> Delete(string type, Guid id)
         => await _service.DeleteAsync(CurrentTenantId, type, id) ? Ok(new { success = true }) : NotFound();
 }

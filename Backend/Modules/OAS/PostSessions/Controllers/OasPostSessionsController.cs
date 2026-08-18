@@ -5,8 +5,10 @@ using MyApi.Modules.OAS.PostSessions.Services;
 
 namespace MyApi.Modules.OAS.PostSessions.Controllers;
 
+/// <summary>Post-session lifecycle (open/relay/close/scan/active) — the operator's own shop-floor flow, exclusively called from `session.ts`/`ScanPage.tsx` (mobile). Never a console concern.</summary>
 [Route("api/oas/post-sessions")]
 [OasPluginGate("OA0003SHOPFLOOR")]
+[OasWorkspace("mobile")]
 public class OasPostSessionsController : OasControllerBase
 {
     private readonly IOasPostSessionService _service;

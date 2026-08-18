@@ -14,14 +14,14 @@ public class OasShiftsController : OasControllerBase
 
     [HttpGet] public async Task<ActionResult<IReadOnlyList<OasShiftTemplateDto>>> GetAll() => Ok(await _service.GetTemplatesAsync(CurrentTenantId));
 
-    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPost] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Create([FromBody] OasShiftTemplateRequestDto request)
     {
         var (success, error, dto) = await _service.CreateTemplateAsync(CurrentTenantId, request);
         return success ? Ok(dto) : BadRequest(new { error });
     }
 
-    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut("{id}")] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<IActionResult> Update(Guid id, [FromBody] OasShiftTemplateRequestDto request)
     {
         var (success, error) = await _service.UpdateTemplateAsync(CurrentTenantId, id, request);
@@ -29,7 +29,7 @@ public class OasShiftsController : OasControllerBase
         return Ok(new { success = true });
     }
 
-    [HttpDelete("{id}")] [OasAuthorize(Roles = "admin")]
+    [HttpDelete("{id}")] [OasAuthorize(Roles = "admin")] [OasWorkspace("web")]
     public async Task<IActionResult> Delete(Guid id)
         => await _service.DeleteTemplateAsync(CurrentTenantId, id) ? Ok(new { success = true }) : NotFound();
 
@@ -52,7 +52,9 @@ public class OasShiftSignoffsController : OasControllerBase
     private readonly IOasShiftService _service;
     public OasShiftSignoffsController(IOasShiftService service) => _service = service;
 
+    /// <summary>Only reachable from ShiftReport.tsx (console-only, admin/supervisor never issues a token to a plain operator) — carried no restriction of its own, unlike every other write in this file.</summary>
     [HttpPost]
+    [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasShiftSignoffDto>> Create([FromBody] OasShiftSignoffRequestDto request)
         => Ok(await _service.CreateSignoffAsync(CurrentTenantId, CurrentOasUserId, request));
 

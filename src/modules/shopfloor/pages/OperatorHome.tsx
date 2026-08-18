@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wrench, PackageSearch, Repeat, CheckCircle2, LogOut, UserCheck, type LucideIcon } from 'lucide-react';
+import { Wrench, PackageSearch, Repeat, CheckCircle2, LogOut, UserCheck, ClipboardCheck, type LucideIcon } from 'lucide-react';
 
 import { StateBadge } from '@/oas/components/StateBadge';
 import { useT } from '@/i18n/I18nProvider';
@@ -217,6 +217,9 @@ export default function OperatorHome() {
         <GloveAction label={t('mobile.home.changeover')} icon={Repeat}
           tone="border-state-changeover/40 bg-state-changeover/10 text-state-changeover"
           onClick={() => navigate('/mobile/changeover')} />
+        <GloveAction label={t('mobile.home.quality')} icon={ClipboardCheck}
+          tone="border-state-quality/40 bg-state-quality/10 text-state-quality"
+          onClick={() => navigate('/mobile/quality')} />
       </section>
 
       {state.declarations.length > 0 && (

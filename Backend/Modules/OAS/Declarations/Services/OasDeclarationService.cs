@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MyApi.Modules.OAS.Common;
 using MyApi.Modules.OAS.Declarations.DTOs;
 using MyApi.Modules.OAS.Declarations.Models;
+using MyApi.Modules.OAS.Hierarchy.Models;
 
 namespace MyApi.Modules.OAS.Declarations.Services;
 
@@ -29,7 +30,46 @@ public class OasDeclarationService : IOasDeclarationService
     private static readonly TimeSpan CorrectionWindow = TimeSpan.FromMinutes(10);
 
     private readonly OasDbContext _db;
-    public OasDeclarationService(OasDbContext db) => _db = db;
+    private readonly System.Security.Claims.ClaimsPrincipal? _user;
+    public OasDeclarationService(OasDbContext db, Microsoft.AspNetCore.Http.IHttpContextAccessor httpContextAccessor)
+    {
+        _db = db;
+        _user = httpContextAccessor.HttpContext?.User;
+    }
+
+    private Guid? CallerScopeClaim(string type)
+    {
+        var claim = _user?.FindFirst(type)?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    /// <summary>
+    /// BL-012 perimeter, resolved via Post→Line→Zone since OasDeclaration
+    /// only carries PostId directly (unlike OasEvent, which denormalizes
+    /// Site/Zone/Line onto the row itself). Two queries (posts in scope,
+    /// then declarations on those posts) rather than one EF-untranslatable
+    /// join through C# scope-check logic.
+    /// </summary>
+    private async Task<Guid[]?> ScopedPostIdsAsync()
+    {
+        var siteId = CallerScopeClaim("oas_scope_site_id");
+        var zoneId = CallerScopeClaim("oas_scope_zone_id");
+        var lineId = CallerScopeClaim("oas_scope_line_id");
+        if (siteId is null && zoneId is null && lineId is null) return null; // unrestricted
+
+        if (lineId is not null)
+            return await _db.Set<OasPost>().Where(p => p.LineId == lineId).Select(p => p.Id).ToArrayAsync();
+
+        var lines = _db.Set<OasLine>().AsQueryable();
+        if (zoneId is not null) lines = lines.Where(l => l.ZoneId == zoneId);
+        else if (siteId is not null)
+        {
+            var zoneIds = await _db.Set<OasZone>().Where(z => z.SiteId == siteId).Select(z => z.Id).ToArrayAsync();
+            lines = lines.Where(l => zoneIds.Contains(l.ZoneId));
+        }
+        var lineIds = await lines.Select(l => l.Id).ToArrayAsync();
+        return await _db.Set<OasPost>().Where(p => lineIds.Contains(p.LineId)).Select(p => p.Id).ToArrayAsync();
+    }
 
     public async Task<OasDeclarationDto> CreateProductionAsync(int tenantId, Guid userId, OasProductionDeclarationRequestDto request)
     {
@@ -107,6 +147,8 @@ public class OasDeclarationService : IOasDeclarationService
     public async Task<IReadOnlyList<OasDeclarationDto>> GetAsync(int tenantId, Guid? postId, Guid? sessionId, DateTimeOffset? from, DateTimeOffset? to)
     {
         var q = _db.Set<OasDeclaration>().AsQueryable();
+        var scopedPostIds = await ScopedPostIdsAsync();
+        if (scopedPostIds is not null) q = q.Where(d => scopedPostIds.Contains(d.PostId));
         if (postId is not null) q = q.Where(d => d.PostId == postId);
         if (sessionId is not null) q = q.Where(d => d.PostSessionId == sessionId);
         if (from is not null) q = q.Where(d => d.OccurredAt >= from);

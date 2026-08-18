@@ -5,9 +5,10 @@ using MyApi.Modules.OAS.ShopFloorAuth.Services;
 
 namespace MyApi.Modules.OAS.ShopFloorAuth.Controllers;
 
-/// <summary>Spec §6.1 "Opérateurs" — GET never includes pin (decision v12); the regenerate-pin route delegates to the same service as /shopfloor/pin/regenerate so the two documented routes never drift.</summary>
+/// <summary>Spec §6.1 "Opérateurs" — GET never includes pin (decision v12); the regenerate-pin route delegates to the same service as /shopfloor/pin/regenerate so the two documented routes never drift. Every action here is console-only (UsersPanel.tsx and the hidden SetupPage.tsx, both of which only ever hold a "web" workspace token) — no mobile screen manages other users.</summary>
 [Route("api/oas/operators")]
 [OasPluginGate("OA0011CONSOLE")]
+[OasWorkspace("web")]
 public class OasOperatorController : OasControllerBase
 {
     private readonly IOasOperatorService _operators;
@@ -46,16 +47,34 @@ public class OasOperatorController : OasControllerBase
     [OasAuthorize(Roles = "admin,supervisor")]
     public async Task<IActionResult> SetActive(Guid id, [FromBody] OasSetActiveRequestDto request)
     {
-        var ok = await _operators.SetActiveAsync(CurrentTenantId, id, request.IsActive);
-        return ok ? Ok(new { success = true }) : NotFound();
+        var (success, error) = await _operators.SetActiveAsync(CurrentTenantId, id, request.IsActive, CurrentOasRole);
+        if (!success)
+        {
+            return error switch
+            {
+                "not_found" => NotFound(),
+                "admin_target_requires_admin_caller" => Problem(statusCode: 403, title: error),
+                _ => BadRequest(new { error }),
+            };
+        }
+        return Ok(new { success = true });
     }
 
+    /// <summary>Relaxed from admin-only to admin,supervisor — the admin-target/admin-role restriction is enforced inside SetRoleAsync itself (mirrors Create), so a supervisor can promote/demote between operator/supervisor but still can't touch an admin either direction.</summary>
     [HttpPut("{id}/role")]
-    [OasAuthorize(Roles = "admin")]
+    [OasAuthorize(Roles = "admin,supervisor")]
     public async Task<IActionResult> SetRole(Guid id, [FromBody] OasSetRoleRequestDto request)
     {
-        var (success, error) = await _operators.SetRoleAsync(CurrentTenantId, id, request.Role);
-        if (!success) return error == "not_found" ? NotFound() : BadRequest(new { error });
+        var (success, error) = await _operators.SetRoleAsync(CurrentTenantId, id, request.Role, CurrentOasRole);
+        if (!success)
+        {
+            return error switch
+            {
+                "not_found" => NotFound(),
+                "admin_role_requires_admin_caller" => Problem(statusCode: 403, title: error),
+                _ => BadRequest(new { error }),
+            };
+        }
         return Ok(new { success = true });
     }
 

@@ -32,7 +32,8 @@ public class OasKpiController : OasControllerBase
         return Ok(await _service.GetParetoAsync(CurrentTenantId, postId, f, t));
     }
 
-    [HttpGet("trend")]
+    // Verified: only ManagerDashboard.tsx (useLiveTrend) calls this — daily/pareto/line-comparison below are shared with MobileKpi.tsx via liveState.ts and must stay unrestricted.
+    [HttpGet("trend")] [OasWorkspace("web")]
     public async Task<ActionResult<IReadOnlyList<OasTrendPointDto>>> Trend([FromQuery] Guid? postId, [FromQuery] Guid? lineId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
     {
         var (f, t) = Range(from, to);
@@ -53,7 +54,8 @@ public class OasKpiController : OasControllerBase
         return Ok(await _service.GetSlaSummaryAsync(CurrentTenantId, f, t));
     }
 
-    [HttpGet("cadence-gap")]
+    // Verified: only Reports.tsx (web) calls this.
+    [HttpGet("cadence-gap")] [OasWorkspace("web")]
     public async Task<ActionResult<IReadOnlyList<OasCadenceGapEntryDto>>> CadenceGap([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
     {
         var (f, t) = Range(from, to);
@@ -75,7 +77,7 @@ public class OasAndonMessageController : OasControllerBase
         return Ok(dto ?? new OasAndonMessageDto { LineId = lineId, Message = "" });
     }
 
-    [HttpPut] [OasAuthorize(Roles = "admin,supervisor")]
+    [HttpPut] [OasAuthorize(Roles = "admin,supervisor")] [OasWorkspace("web")]
     public async Task<ActionResult<OasAndonMessageDto>> Set([FromBody] OasAndonMessageRequestDto request)
         => Ok(await _service.SetAndonMessageAsync(CurrentTenantId, CurrentOasUserId, request));
 }

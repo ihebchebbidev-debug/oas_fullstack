@@ -9,12 +9,35 @@ namespace MyApi.Modules.OAS.ShopFloorAuth.Services;
 public class OasOperatorService : IOasOperatorService
 {
     private readonly OasDbContext _db;
+    private readonly System.Security.Claims.ClaimsPrincipal? _user;
 
-    public OasOperatorService(OasDbContext db) => _db = db;
+    public OasOperatorService(OasDbContext db, Microsoft.AspNetCore.Http.IHttpContextAccessor httpContextAccessor)
+    {
+        _db = db;
+        _user = httpContextAccessor.HttpContext?.User;
+    }
+
+    private Guid? CallerScopeClaim(string type)
+    {
+        var claim = _user?.FindFirst(type)?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
 
     public async Task<IReadOnlyList<OasOperatorDto>> SearchAsync(int tenantId, string? q, Guid? scopeSiteId, Guid? scopeZoneId, Guid? scopeLineId)
     {
         var query = _db.Users.AsQueryable();
+
+        // BL-012: the CALLER's own perimeter is a floor, independent of the
+        // scopeSiteId/scopeZoneId/scopeLineId query params above (which
+        // filter by the TARGET users' assignment, e.g. "show me who's on
+        // line X") — a scoped supervisor previously saw the entire tenant's
+        // directory here regardless of their own assignment.
+        var callerSiteId = CallerScopeClaim("oas_scope_site_id");
+        var callerZoneId = CallerScopeClaim("oas_scope_zone_id");
+        var callerLineId = CallerScopeClaim("oas_scope_line_id");
+        if (callerLineId is not null) query = query.Where(u => u.ScopeLineId == callerLineId);
+        else if (callerZoneId is not null) query = query.Where(u => u.ScopeZoneId == callerZoneId);
+        else if (callerSiteId is not null) query = query.Where(u => u.ScopeSiteId == callerSiteId);
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -85,16 +108,23 @@ public class OasOperatorService : IOasOperatorService
         return (true, null, ToDto(user));
     }
 
-    public async Task<bool> SetActiveAsync(int tenantId, Guid id, bool isActive)
+    public async Task<(bool success, string? error)> SetActiveAsync(int tenantId, Guid id, bool isActive, string callerRole)
     {
         var user = await _db.Users.FindAsync(id);
-        if (user is null) return false;
+        if (user is null) return (false, "not_found");
+        // A supervisor could otherwise deactivate (or reactivate) an admin
+        // account — the same "supervisor touches an admin" gap already
+        // closed on Create/SetRole for this controller.
+        if (user.Role == OasAppRole.admin && !string.Equals(callerRole, "admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, "admin_target_requires_admin_caller");
+        }
         user.IsActive = isActive;
         await _db.SaveChangesAsync();
-        return true;
+        return (true, null);
     }
 
-    public async Task<(bool success, string? error)> SetRoleAsync(int tenantId, Guid id, string role)
+    public async Task<(bool success, string? error)> SetRoleAsync(int tenantId, Guid id, string role, string callerRole)
     {
         if (!Enum.TryParse<OasAppRole>(role, ignoreCase: true, out var parsedRole))
         {
@@ -102,6 +132,14 @@ public class OasOperatorService : IOasOperatorService
         }
         var user = await _db.Users.FindAsync(id);
         if (user is null) return (false, "not_found");
+        var isAdminCaller = string.Equals(callerRole, "admin", StringComparison.OrdinalIgnoreCase);
+        // Promoting TO admin, or changing an EXISTING admin's role at all,
+        // both require an admin caller — mirrors CreateAsync's rule so a
+        // supervisor can't escalate via either path.
+        if ((parsedRole == OasAppRole.admin || user.Role == OasAppRole.admin) && !isAdminCaller)
+        {
+            return (false, "admin_role_requires_admin_caller");
+        }
         user.Role = parsedRole;
         await _db.SaveChangesAsync();
         return (true, null);

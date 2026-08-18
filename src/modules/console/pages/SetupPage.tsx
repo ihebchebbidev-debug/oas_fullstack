@@ -17,7 +17,7 @@ import { ApiError } from '@/oas/api/client';
  * the real Users console screen uses — just without the extra navigation.
  */
 
-type Created = { displayName: string; email: string; employeeCode: string; pin?: string; password?: string };
+type Created = { displayName: string; email: string; employeeCode: string; pin?: string; password?: string; pinFailed?: boolean };
 
 function normalizeEmployeeCode(raw: string): string {
   const digits = raw.replace(/\D/g, '');
@@ -216,12 +216,21 @@ function ManagePanel() {
         role, workspace: role === 'operator' ? 'mobile' : 'web',
         password: isWeb ? password : undefined,
       });
+      // The account now exists regardless of what happens next — a failure
+      // past this point must still show up below, not get reported as
+      // "failed to create" (which it didn't) while silently leaving behind
+      // an unusable account nobody knows to go find in the real Users screen.
       let pin: string | undefined;
+      let pinFailed = false;
       if (role === 'operator') {
-        const pinResult = await operatorsApi.regeneratePin(dto.id);
-        pin = pinResult.pin;
+        try {
+          const pinResult = await operatorsApi.regeneratePin(dto.id);
+          pin = pinResult.pin;
+        } catch {
+          pinFailed = true;
+        }
       }
-      setCreated((prev) => [{ displayName: displayName.trim(), email, employeeCode: code ?? '—', pin, password: isWeb ? password : undefined }, ...prev]);
+      setCreated((prev) => [{ displayName: displayName.trim(), email, employeeCode: code ?? '—', pin, pinFailed, password: isWeb ? password : undefined }, ...prev]);
       setDisplayName('');
       setEmployeeCode('');
       setPassword('');
@@ -303,7 +312,12 @@ function CreatedCard({ c }: { c: Created }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4 text-sm">
       <p className="font-medium">{c.displayName}</p>
-      <p className="text-xs text-muted-foreground">{c.pin ? c.employeeCode : c.email}</p>
+      <p className="text-xs text-muted-foreground">{c.pin || c.pinFailed ? c.employeeCode : c.email}</p>
+      {c.pinFailed && (
+        <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          Account created, but PIN generation failed — this operator can't sign in yet. Go to Referentials → Users and use "Regenerate PIN" for {c.employeeCode}.
+        </p>
+      )}
       {secret && (
         <div className="mt-2 flex items-center justify-between rounded-md bg-muted px-3 py-2">
           <div>
